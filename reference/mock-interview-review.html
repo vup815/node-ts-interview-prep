@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模擬面試複習 — 問答整理</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<p><span class="tag tag-interview">Interview</span></p>
+
+<h1>模擬面試：全部問答整理</h1>
+<p><em>7 題模擬面試 + 4 段深入討論。面試前複習這一份就夠。</em></p>
+<p>課程：<a href="../lessons/index.html">Course Index</a></p>
+
+<hr>
+
+<h2>Q1. Event Loop 怎麼運作？</h2>
+
+<div class="callout callout-tip"><strong>要點：</strong>libuv 實作 · 六個 phases · microtask 每個 phase 之間完整清空</div>
+
+<p><strong>完整回答：</strong></p>
+<blockquote>
+<p>"Event loop 是由 libuv 實作的。它讓單執行緒的 JavaScript 能處理非阻塞的 I/O 並行。</p>
+<p>它循環六個 phases：<strong>timers</strong>（setTimeout/setInterval）、<strong>pending callbacks</strong>、<strong>idle/prepare</strong>（內部用）、<strong>poll</strong>（I/O callbacks）、<strong>check</strong>（setImmediate）、<strong>close callbacks</strong>。</p>
+<p>關鍵是 <strong>microtask queue（nextTick 優先，Promise 次之）會在每個 phase 之間被完整清空</strong>。所以 promise 的 .then 會比 setTimeout(0) 先跑，因為後者是 macrotask，要等 timers phase。</p>
+<p>實務影響：如果某個 CPU 密集工作佔住主執行緒，event loop 就無法處理任何 I/O — 整個 server 會凍結。"</p>
+</blockquote>
+
+<h2>Q2. setTimeout(0) vs process.nextTick</h2>
+
+<div class="callout callout-tip"><strong>要點：</strong>nextTick 一定先執行 · recursive nextTick 會餓死 event loop</div>
+
+<p><strong>完整回答：</strong></p>
+<blockquote>
+<p>"<code>setTimeout(cb, 0)</code> 是 macrotask — 在 timers phase 執行。<code>process.nextTick(cb)</code> 是 microtask — 在每個 phase 之間、macrotask 之前被清空。所以 <strong>nextTick 一定先執行</strong>，這是 Node 的保證。</p>
+<p>但 nextTick 有個陷阱：如果你在 nextTick callback 裡又遞迴呼叫 nextTick，<strong>nextTick queue 永遠清不空，event loop 走不到 poll phase，所有 I/O 都會被餓死</strong>。</p>
+<p>現代寫法我會用 <code>queueMicrotask()</code> 取代 nextTick，需要延後到 I/O 之後的工作用 <code>setImmediate()</code>。"</p>
+</blockquote>
+
+<h2>Q3. Partial / Pick / Omit</h2>
+
+<div class="callout callout-tip"><strong>要點：</strong>Partial=全部 optional（PATCH）· Pick=選子集（查詢回應）· Omit=去掉欄位（藏機密）· 組合：Partial&lt;Omit&lt;User,'id'&gt;&gt;</div>
+
+<table>
+<tr><th>Utility</th><th>做什麼</th><th>情境</th></tr>
+<tr><td><code>Partial&lt;T&gt;</code></td><td>全部欄位變 optional</td><td>PATCH request body</td></tr>
+<tr><td><code>Pick&lt;T, K&gt;</code></td><td>只保留 K 欄位</td><td>查詢 API 只回傳特定欄位</td></tr>
+<tr><td><code>Omit&lt;T, K&gt;</code></td><td>移除 K 欄位</td><td>不回傳機密/敏感欄位</td></tr>
+</table>
+
+<div class="callout callout-warn"><strong>陷阱（面試追問）：</strong>Partial 是<strong>淺層</strong>的 — 只影響最外層欄位，巢狀物件不會。面試官等你講出這個。</div>
+
+<blockquote>
+<p>"我組合使用：<code>Partial&lt;Omit&lt;User, 'id'&gt;&gt;</code> = id 不能改，其他欄位可選改 — 這是 PATCH 的完整答案。保留的欄位少用 Pick，移除的欄位少用 Omit。"</p>
+</blockquote>
+
+<h2>Q4. Interface vs Type</h2>
+
+<div class="callout callout-tip"><strong>要點：</strong>唯一真正的差別是 declaration merging（interface 可以，type 不行）· 預設用 type，擴充第三方型別才用 interface</div>
+
+<blockquote>
+<p>"Interface 和 type 在物件 shape 上幾乎等價，真正的差別是 <strong>interface 可以 declaration merging</strong> — 重複宣告會合併，type 重複宣告會報錯。</p>
+<p>Type 比較靈活，可以表達 union、tuple、primitive alias、utility/mapped types — interface 做不到。</p>
+<p>我的原則是：<strong>預設用 type</strong> 定義所有資料形狀。唯一用 interface 的時機是<strong>擴充第三方型別</strong> — 比如往 Express 的 Request 加 user 屬性，那必須用 interface 才能 merge。"</p>
+</blockquote>
+
+<h3>本質區別（Lesson 5 加深）</h3>
+<table>
+<tr><th></th><th>interface</th><th>type</th><th>class</th></tr>
+<tr><td>編譯後</td><td>消失</td><td>消失</td><td>存在（變成 JS class）</td></tr>
+<tr><td>merge</td><td>✅</td><td>❌</td><td>❌</td></tr>
+<tr><td>可 new</td><td>❌</td><td>❌</td><td>✅</td></tr>
+<tr><td>有實作</td><td>❌</td><td>❌</td><td>✅</td></tr>
+<tr><td>union/tuple/mapped</td><td>❌</td><td>✅</td><td>❌</td></tr>
+</table>
+
+<h2>Q5. 型別化 API 回應</h2>
+
+<div class="callout callout-tip"><strong>要點：</strong>discriminated union · 共同 literal 欄位（status）當 discriminant · default: never exhaustiveness check</div>
+
+<pre>type ApiResult&lt;T&gt; =
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; message: string }</pre>
+
+<blockquote>
+<p>"好處是無效狀態在型別層面就不存在 — 不可能同時有 data 和 error。使用端用 switch 收窄，每個 case 自動知道有哪些欄位。</p>
+<p>我還會加 <code>default: never</code> 做 exhaustiveness check — 以後加新狀態，編譯器會強迫我處理它。"</p>
+</blockquote>
+
+<h2>Q6. Streams</h2>
+
+<div class="callout callout-tip"><strong>要點：</strong>chunk 流式處理 · 4 種型別 · backpressure · 2GB 檔案只佔 ~64KB</div>
+
+<blockquote>
+<p>"Streams 是處理資料的抽象介面，以 <strong>chunk</strong> 為單位流式處理，而不是一次載入全部。</p>
+<p>四種型別：<strong>Readable</strong>（讀取來源）、<strong>Writable</strong>（寫入目標）、<strong>Duplex</strong>（可讀可寫，如 TCP socket）、<strong>Transform</strong>（讀取→轉換→寫出，如 gzip）。</p>
+<p>好處是記憶體效率：2GB 檔案用 readFile 佔 2GB RAM，用 stream 一次只處理 ~64KB。</p>
+<p>Streams 用 <code>.pipe()</code> 串接，它會自動處理 <strong>backpressure</strong> — 寫入端跟不上時暫停讀取端，避免記憶體爆掉。"</p>
+</blockquote>
+
+<h2>Q7. 單執行緒怎麼並行？（最大迷思！）</h2>
+
+<div class="callout callout-warn"><strong>要矯正的迷思：</strong>Node 並行靠的是「單執行緒 + 非阻塞 I/O + event loop」，<strong>不是 thread pool</strong>。HTTP/TCP 不走 thread pool，是作業系統層面的非同步。</div>
+
+<blockquote>
+<p>"Node 是單執行緒，但能處理大量請求，靠的是<strong>非阻塞 I/O + event loop</strong>。HTTP/TCP 這類網路 I/O 由作業系統層面非同步處理，完成後透過 event loop 通知主執行緒。</p>
+<p>但 fs、crypto、DNS 這類 blocking 系統呼叫，會交給 <strong>libuv thread pool</strong>（預設 4 個執行緒）。</p>
+<p><strong>CPU 密集工作是 Node 的弱點</strong> — 直接跑在主執行緒，佔住 event loop，所有請求凍結。解法：worker_threads、cluster、或改用內建 thread pool 函式。"</p>
+</blockquote>
+
+<table>
+<tr><th>操作</th><th>誰處理</th></tr>
+<tr><td>HTTP / TCP 網路</td><td>作業系統（非同步）</td></tr>
+<tr><td>檔案讀寫 fs</td><td>thread pool</td></tr>
+<tr><td>crypto (pbkdf2)</td><td>thread pool</td></tr>
+<tr><td>DNS lookup</td><td>thread pool</td></tr>
+</table>
+
+<h3>追問：請求會排隊嗎？</h3>
+<p>HTTP 請求本身<strong>不會排隊</strong> — OS 層並行處理。但如果 handler 內做了 fs/crypto，<strong>那些操作會排 thread pool</strong>（4 個執行緒，第 5 個開始排隊）。</p>
+
+<hr>
+
+<h2>深入討論 1：OS 怎麼通知 event loop？</h2>
+
+<div class="callout callout-tip"><strong>要點：</strong>epoll/kqueue · poll phase 就是 block 在 epoll_wait() 上 · callback 排進 poll phase</div>
+
+<p>底層機制：作業系統提供「等 I/O 事件」的系統呼叫 — Linux 是 <code>epoll</code>，macOS 是 <code>kqueue</code>。libuv 把 socket 註冊進去，poll phase 就 block 在 <code>epoll_wait()</code> 上。資料到了 OS 喚醒它，libuv 把對應 callback 排進 <strong>poll phase</strong>。</p>
+
+<table>
+<tr><th>什麼完成</th><th>callback 進哪個 phase</th></tr>
+<tr><td>檔案讀取、網路請求、socket</td><td><strong>poll</strong></td></tr>
+<tr><td>setTimeout / setInterval</td><td>timers</td></tr>
+<tr><td>setImmediate</td><td>check</td></tr>
+</table>
+
+<p>等資料的是 <strong>OS 核心</strong>，不是 JS 執行緒。執行緒只是 block 在 epoll_wait() 等 OS 叫醒，不佔 CPU。</p>
+
+<h2>深入討論 2：microtask 細節</h2>
+
+<div class="callout callout-tip"><strong>要點：</strong>每個 phase 後完整清空 · nextTick 先、Promise 次之 · 清空中產生的新 microtask 會繼續清</div>
+
+<pre>setTimeout(() => console.log('A'), 0);
+Promise.resolve().then(() => {
+  console.log('B');
+  setTimeout(() => console.log('C'), 0);
+});
+process.nextTick(() => console.log('D'));
+
+// 輸出：D, B, A, C
+// nextTick 優先 → Promise → 第一個 timer → 第二個 timer（同 phase 內）</pre>
+
+<h2>深入討論 3：async/await yield（最經典陷阱）</h2>
+
+<div class="callout callout-warn"><strong>核心規則：</strong>await 永遠把控制權交還給呼叫者，就算 Promise 已 resolved。</div>
+
+<pre>async function foo() {
+  console.log('1');
+  await bar();      // 暫停 foo 自己
+  console.log('3'); // 續段被排成 microtask
+}
+async function bar() { console.log('2'); }
+foo();
+console.log('4');
+
+// 輸出：1, 2, 4, 3  （不是 1, 2, 3, 4！）
+
+// 如果 bar() 沒有 await：
+// 輸出：1, 2, 3, 4  （bar 同步執行，foo 接著跑）</pre>
+
+<p><code>await</code> 暫停的是「包含 await 的函式」（foo），控制權回到呼叫 foo 的地方（全域）。</p>
+
+<h2>深入討論 4：setImmediate 的應用</h2>
+
+<ul>
+<li><strong>排在目前 I/O 之後</strong>：在 poll phase 的 callback 裡，setImmediate 保證在下一輪 timers 前執行，不會延遲其他 I/O</li>
+<li><strong>避免 blocking / yield</strong>：長遞迴任務用 setImmediate 每輪 yield 給 event loop，比 nextTick 安全（nextTick 會餓死 I/O）</li>
+</ul>
+
+<blockquote>
+<p>"<code>setImmediate</code> = 我接下來馬上要做的，但先讓 I/O 呼吸。<code>process.nextTick</code> = 我插隊，誰都別攔我。"</p>
+</blockquote>
+
+<hr>
+
+<h2>弱點總評與複習重點</h2>
+
+<table>
+<tr><th>題目</th><th>表現</th><th>複習重點</th></tr>
+<tr><td>Q1 Event loop</td><td>🟡</td><td>phase 順序（timers 在最前）、microtask 每個 phase 間清空</td></tr>
+<tr><td>Q2 nextTick vs setTimeout</td><td>🟡</td><td>先執行順序、starvation 風險</td></tr>
+<tr><td>Q3 Utility types</td><td>🟢</td><td>已掌握，補淺層陷阱 + 組合用法</td></tr>
+<tr><td>Q4 Interface vs Type</td><td>🟢</td><td>補擴充第三方型別的情境</td></tr>
+<tr><td>Q5 API 回應</td><td>🟡</td><td>要完整展示 discriminated union + never check</td></tr>
+<tr><td>Q6 Streams</td><td>🟡</td><td>精確定義、backpressure</td></tr>
+<tr><td>Q7 並行/CPU</td><td>🔴</td><td><strong>thread pool 迷思要矯正</strong>（重點）</td></tr>
+</table>
+
+<hr>
+
+<p style="color: var(--gray); font-size: 0.85em;">面試前一天複習這份 + 各 Lesson 的 answer scripts 就夠了。</p>
+
+</body>
+</html>

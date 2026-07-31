@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 4: TypeScript Narrowing & Type Guards</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<p><span class="tag tag-ts">TypeScript</span> <span class="tag tag-interview">Interview</span></p>
+
+<h1>Lesson 4: Narrowing & Type Guards</h1>
+<p><em>How to turn a vague type into a precise one — one of the most practical skills in TypeScript interviews.</em></p>
+<p>Prerequisites: <a href="0002b-typescript-utility-types-simpler.html">Lesson 2b (utility types)</a></p>
+
+<hr>
+
+<h2>Why This Matters</h2>
+<p>In real code — and in interviews — you constantly receive data of a <strong>broad type</strong> and need to work with it safely. Narrowing is how you refine that broad type into something useful. Without it, everything is <code>any</code> or <code>unknown</code> and you lose type safety.</p>
+
+<hr>
+
+<h2>1. What is Narrowing?</h2>
+
+<p><strong>Narrowing</strong> is TypeScript's process of reducing a <strong>union type</strong> to a <strong>specific member</strong> of that union, based on a runtime check.</p>
+
+<pre>// Broad type
+function process(value: string | number) {
+  // Here, `value` is string | number — too vague to do anything useful
+
+  if (typeof value === 'string') {
+    // Inside this block, `value` is narrowed to `string`
+    console.log(value.toUpperCase());  // ✅ OK
+  } else {
+    // Inside this block, `value` is narrowed to `number`
+    console.log(value.toFixed(2));     // ✅ OK
+  }
+}</pre>
+
+<p>The <code>typeof</code> check acts as a <strong>type guard</strong> — it tells TypeScript to trust that inside the <code>if</code> block, the type is <code>string</code>.</p>
+
+<hr>
+
+<h2>2. typeof — The Most Common Guard</h2>
+
+<pre>function format(input: string | number | boolean): string {
+  if (typeof input === 'string') {
+    return input.toUpperCase();
+  }
+  if (typeof input === 'number') {
+    return input.toFixed(2);
+  }
+  // At this point, TypeScript knows input is boolean
+  return input ? 'yes' : 'no';
+}</pre>
+
+<h3>What typeof can check</h3>
+<ul>
+<li><code>'string'</code>, <code>'number'</code>, <code>'boolean'</code>, <code>'symbol'</code>, <code>'bigint'</code>, <code>'undefined'</code>, <code>'object'</code>, <code>'function'</code></li>
+<li>⚠️ <code>typeof null === 'object'</code> — this is a JS bug. Use a separate null check.</li>
+</ul>
+
+<hr>
+
+<h2>3. instanceof — For Classes</h2>
+
+<pre>class ApiError extends Error {
+  constructor(public statusCode: number, message: string) {
+    super(message);
+  }
+}
+
+function handleError(err: Error | string) {
+  if (err instanceof ApiError) {
+    // narrowed to ApiError — has .statusCode
+    console.log(`API ${err.statusCode}: ${err.message}`);
+  } else if (err instanceof Error) {
+    // narrowed to Error
+    console.log(`General error: ${err.message}`);
+  } else {
+    // narrowed to string
+    console.log(`String message: ${err}`);
+  }
+}</pre>
+
+<hr>
+
+<h2>4. The 'in' Operator — Checking Properties</h2>
+
+<pre>interface Car { wheels: number; drive(): void; }
+interface Boat { length: number; sail(): void; }
+
+function operate(vehicle: Car | Boat) {
+  if ('drive' in vehicle) {
+    // narrowed to Car
+    vehicle.drive();
+  } else {
+    // narrowed to Boat
+    vehicle.sail();
+  }
+}</pre>
+
+<p><code>'property' in obj</code> checks if a property exists at runtime. TypeScript uses this to narrow the type to whichever member has that property.</p>
+
+<hr>
+
+<h2>5. Discriminated Unions — The Cleanest Pattern</h2>
+
+<p>Instead of checking which <em>properties</em> exist, check a common literal <strong>discriminant</strong> property:</p>
+
+<pre>type ApiResult&lt;T&gt; =
+  | { status: 'success'; data: T }
+  | { status: 'error'; message: string }
+  | { status: 'loading' };
+
+function handleResult(result: ApiResult&lt;User&gt;) {
+  switch (result.status) {
+    case 'success':
+      // narrowed: result.data is User ✅
+      console.log(result.data.name);
+      break;
+    case 'error':
+      // narrowed: result.message is string ✅
+      console.error(result.message);
+      break;
+    case 'loading':
+      // narrowed: no data, no message — just loading
+      console.log('Loading...');
+      break;
+  }
+}</pre>
+
+<div class="callout callout-tip">
+<strong>Interview script:</strong> "I use discriminated unions with a common <code>status</code> or <code>kind</code> field. The compiler narrows inside each <code>case</code>, so accessing <code>.data</code> on <code>'loading'</code> is a compile error."
+</div>
+
+<hr>
+
+<h2>6. User-Defined Type Guards</h2>
+
+<p>Sometimes <code>typeof</code> or <code>instanceof</code> isn't enough. You can write a <strong>custom type guard</strong> using the <code>value is Type</code> syntax:</p>
+
+<pre>interface User { name: string; email: string; }
+interface Admin extends User { role: 'admin'; }
+
+function isAdmin(user: User): user is Admin {
+  return 'role' in user && user.role === 'admin';
+}
+
+function processUser(user: User) {
+  if (isAdmin(user)) {
+    // narrowed to Admin — has .role
+    console.log(`Admin: ${user.name}, role: ${user.role}`);
+  } else {
+    // narrowed to User (not Admin)
+    console.log(`User: ${user.name}`);
+  }
+}</pre>
+
+<p>The return type <code>user is Admin</code> tells TypeScript: "if this function returns true, treat the argument as <code>Admin</code>."</p>
+
+<hr>
+
+<h2>7. Exhaustiveness Check with never</h2>
+
+<p>When you add a new variant to a union, you want the compiler to warn you about unhandled cases:</p>
+
+<pre>type Shape =
+  | { kind: 'circle'; radius: number }
+  | { kind: 'square'; side: number }
+  | { kind: 'triangle'; base: number; height: number };  // new!
+
+function area(s: Shape): number {
+  switch (s.kind) {
+    case 'circle':
+      return Math.PI * s.radius ** 2;
+    case 'square':
+      return s.side ** 2;
+    default:
+      // Error if any case is missing:
+      // Type 'triangle' is not assignable to type 'never'
+      const _exhaustive: never = s;
+      return _exhaustive;
+  }
+}</pre>
+
+<div class="callout callout-warn">
+<strong>Interview trap:</strong> Without the <code>never</code> default, adding <code>triangle</code> would compile silently. The function would return <code>undefined</code> at runtime. The <code>never</code> check catches this at compile time.
+</div>
+
+<hr>
+
+<h2>8. Summary</h2>
+
+<table>
+<tr><th>Guard</th><th>Syntax</th><th>When to use</th></tr>
+<tr><td><code>typeof</code></td><td><code>typeof x === 'string'</code></td><td>Primitive types</td></tr>
+<tr><td><code>instanceof</code></td><td><code>x instanceof Error</code></td><td>Class instances</td></tr>
+<tr><td><code>in</code></td><td><code>'prop' in obj</code></td><td>Checking property existence</td></tr>
+<tr><td>Discriminated union</td><td><code>switch (x.kind)</code></td><td>Object unions with a literal tag</td></tr>
+<tr><td>Custom guard</td><td><code>fn(x): x is T</code></td><td>Complex runtime logic</td></tr>
+<tr><td><code>never</code></td><td><code>const x: never = val</code></td><td>Exhaustiveness check</td></tr>
+</table>
+
+<hr>
+
+<h2>9. Puzzles</h2>
+
+<div class="quiz-question">
+<p><strong>Puzzle 1:</strong> What is the narrowed type of <code>x</code> inside each branch?</p>
+<pre>function test(x: string | number | null) {
+  if (typeof x === 'string') { /* ??? */ }
+  else if (typeof x === 'number') { /* ??? */ }
+  else { /* ??? */ }
+}</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer">
+<p><code>string</code>, <code>number</code>, <code>null</code> — the else branch gets whatever remains after the guards.</p>
+</div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 2:</strong> What is the problem with this code?</p>
+<pre>function getLength(x: string | string[]) {
+  if (typeof x === 'object') {
+    return x.length;
+  }
+  return x.length;
+}</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer">
+<p><code>typeof null === 'object'</code> — so if <code>x</code> is somehow <code>null</code>, the first branch would crash. Use <code>Array.isArray(x)</code> instead when checking for arrays.</p>
+</div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 3:</strong> Without adding the <code>never</code> check in the default branch, what would happen if someone adds <code>{ kind: 'triangle'; base: number; height: number }</code> to the <code>Shape</code> union?</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer">
+<p>The function would compile fine, but at runtime <code>area({ kind: 'triangle', base: 3, height: 4 })</code> would return <code>undefined</code> — no error, no warning. The <code>never</code> check forces you to handle every variant.</p>
+</div>
+</div>
+
+<hr>
+
+<h2>10. Interview Answer Script</h2>
+
+<p>When the interviewer says "How does TypeScript narrowing work?"</p>
+
+<blockquote>
+<p>"Narrowing is TypeScript's ability to refine a union type based on runtime checks. The most common guards are <code>typeof</code> for primitives, <code>instanceof</code> for classes, and <code>'property' in obj</code> for checking property existence.</p>
+<p>"For object types with multiple variants, I use <strong>discriminated unions</strong> — each member has a literal <code>kind</code> or <code>status</code> property, and a switch statement narrows per case. I always add a <code>default: never</code> branch as an exhaustiveness check so the compiler tells me when I've missed a variant.</p>
+<p>"For complex logic, I write custom type guards with the <code>value is Type</code> return syntax — they let me encapsulate the runtime check while keeping the narrowed type downstream."</p>
+</blockquote>
+
+<hr>
+
+<h2>Primary Sources</h2>
+<ul>
+<li><a href="https://www.typescriptlang.org/docs/handbook/2/narrowing.html">TS Handbook: Narrowing</a> — the official guide</li>
+</ul>
+
+<hr>
+
+<p style="color: var(--gray); font-size: 0.85em;">Clear? Any part still fuzzy?</p>
+
+<script>
+function toggleAnswer(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('show');
+  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+}
+</script>
+
+</body>
+</html>

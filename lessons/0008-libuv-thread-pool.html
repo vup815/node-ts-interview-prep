@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 8: libuv Thread Pool &amp; Worker Threads</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<p><span class="tag tag-node">Node.js</span> <span class="tag tag-interview">Interview</span></p>
+
+<h1>Lesson 8: libuv Thread Pool & Worker Threads</h1>
+<p><em>「Node 是單執行緒」這句話的完整真相。</em></p>
+<p>Prerequisite: <a href="0001-nodejs-event-loop.html">Lesson 1 (event loop)</a></p>
+
+<hr>
+
+<h2>完整真相：Node 不是真的只有一個執行緒</h2>
+
+<p>「Node 是單執行緒」指的是 <strong>你的 JavaScript 跑在一個執行緒上</strong>。但底下 libuv 還有：</p>
+<ul>
+<li><strong>一個執行緒</strong>跑 event loop（主執行緒）</li>
+<li><strong>四個執行緒</strong>的 thread pool（預設）</li>
+<li><strong>事件迴圈本身</strong>也有數個內部執行緒</li>
+</ul>
+
+<hr>
+
+<h2>1. 什麼跑在主執行緒？什麼跑在 thread pool？</h2>
+
+<table>
+<tr><th>主執行緒（JS）</th><th>libuv thread pool（4 threads 預設）</th></tr>
+<tr><td>你的所有程式碼</td><td>fs 檔案操作</td></tr>
+<tr><td>CPU 運算</td><td>DNS lookup</td></tr>
+<tr><td>網路 I/O（HTTP/TCP）</td><td>crypto（pbkdf2, randomBytes）</td></tr>
+<tr><td></td><td>zlib 壓縮</td></tr>
+</table>
+
+<div class="callout callout-tip">
+<strong>重點：</strong>網路 I/O（HTTP、socket）不用 thread pool — 它是作業系統層面的非同步。檔案系統和 crypto 才需要 thread pool，因為它們本身是 blocking 的系統呼叫。
+</div>
+
+<h3>怎麼確認？用程式跑一次</h3>
+<pre>const fs = require('fs')
+
+// 同步檔案讀取 — 會 blocking 主執行緒
+fs.readFileSync('file.txt')
+
+// 非同步檔案讀取 — 丟給 thread pool，主執行緒繼續跑
+fs.readFile('file.txt', () =&gt; console.log('done'))
+console.log('runs first')  // ✅ 先印這個</pre>
+
+<hr>
+
+<h2>2. Thread pool 的大小</h2>
+
+<pre>// 預設 4 個執行緒
+console.log(process.env.UV_THREADPOOL_SIZE)  // undefined → 預設 4
+
+// 可以改（要在程式啟動時、載入模組前設定）
+process.env.UV_THREADPOOL_SIZE = 8
+require('fs')  // 之後才載入 fs</pre>
+
+<p><strong>效能含義：</strong>如果你的程式同時做 8 個檔案讀取，但 thread pool 只有 4 個，就有 4 個會排隊等前面的完成。</p>
+
+<pre>const crypto = require('crypto')
+
+// 同時啟動 6 個 pbkdf2（很吃 CPU 的 crypto）
+const start = Date.now()
+for (let i = 0; i &lt; 6; i++) {
+  crypto.pbkdf2('password', 'salt', 100000, 64, 'sha512', () =&gt; {
+    console.log(`#${i} done in ${Date.now() - start}ms`)
+  })
+}
+
+// 預期輸出：前 4 個差不多同時完成，後 2 個多等一輪
+// 因為 thread pool 只有 4 個執行緒可以同時跑</pre>
+
+<hr>
+
+<h2>3. CPU 密集任務：為什麼會 block event loop</h2>
+
+<pre>// ❌ 這會凍結整個 server
+function sumTo(n: number) {
+  let sum = 0
+  for (let i = 0; i &lt; n; i++) sum += i
+  return sum
+}
+
+app.get('/heavy', (req, res) =&gt; {
+  const result = sumTo(1_000_000_000)  // 跑在主執行緒 → 所有請求都卡住
+  res.json({ result })
+})</pre>
+
+<p>主執行緒被 CPU 運算佔住，event loop 無法處理任何 I/O — 每個請求都延遲。</p>
+
+<h3>解法三選一</h3>
+
+<pre>// 1. Worker threads — 把工作丟到另一個執行緒
+const { Worker } = require('worker_threads')
+
+const worker = new Worker(`
+  const { parentPort } = require('worker_threads')
+  let sum = 0
+  for (let i = 0; i &lt; 1e9; i++) sum += i
+  parentPort.postMessage(sum)
+`, { eval: true })
+
+worker.on('message', result =&gt; res.json({ result }))
+worker.on('error', err =&gt; res.status(500).json({ error: err.message }))
+</pre>
+
+<pre>// 2. Cluster — 多個 process，每個有自己的 event loop
+const cluster = require('cluster')
+const http = require('http')
+const numCPUs = require('os').cpus().length
+
+if (cluster.isPrimary) {
+  console.log(`Primary ${process.pid} is running`)
+  // 產生跟 CPU 數量一樣多的 worker process
+  for (let i = 0; i &lt; numCPUs; i++) {
+    cluster.fork()
+  }
+} else {
+  // worker process 各自跑 server
+  http.createServer((req, res) =&gt; {
+    res.writeHead(200)
+    res.end('Hello')
+  }).listen(8000)
+  console.log(`Worker ${process.pid} started`)
+}
+</pre>
+
+<pre>// 3. 如果是 crypto/compress 這類 — 已經支援 thread pool，直接用就好
+crypto.pbkdf2(...)  // ✅ 自動用 thread pool
+</pre>
+
+<hr>
+
+<h2>4. Worker Threads vs Cluster</h2>
+
+<table>
+<tr><th></th><th>Worker Threads</th><th>Cluster</th></tr>
+<tr><td>執行緒 or 程序</td><td>執行緒（共享記憶體）</td><td>程序（隔離記憶體）</td></tr>
+<tr><td>能共享狀態？</td><td>✅（SharedArrayBuffer, Atomics）</td><td>❌ 只能透過 IPC 訊息</td></tr>
+<tr><td>記憶體</td><td>較少</td><td>每個 process 一份</td></tr>
+<tr><td>當掉影響</td><td>可能拖垮主執行緒</td><td>獨立，可以 restart</td></tr>
+<tr><td>用途</td><td>單一工作負載內的平行運算</td><td>水平擴展多核 CPU 流量</td></tr>
+</table>
+
+<hr>
+
+<h2>5. 面試 script</h2>
+
+<p>當面試官問「Node 是單執行緒嗎？怎麼處理並行？」：</p>
+
+<blockquote>
+<p>"不完全對。你的 JavaScript 跑在單一主執行緒上，但底下有 libuv — 它提供 event loop 和一個預設 4 個執行緒的 thread pool。</p>
+<p>"I/O 密集的工作（檔案、網路、crypto）交給 thread pool 或作業系統，所以主執行緒不會被卡住 — 這就是為什麼 Node 可以同時處理上千個連線。</p>
+<p>"但 CPU 密集的工作（大量計算、壓縮、JSON.stringify 大物件）會佔住主執行緒，block 所有請求。解法有三：worker_threads 做平行運算、cluster 開多個 process、或把 crypto/compress 這類工作用內建的 thread pool 函式。</p>
+<p>"worker_threads 共享記憶體適合單一任務的平行化，cluster 適合把流量分散到多個 process。"</p>
+</blockquote>
+
+<hr>
+
+<h2>6. 練習題</h2>
+
+<div class="quiz-question">
+<p><strong>Puzzle 1:</strong> 哪個操作會 block event loop？</p>
+<ul>
+<li>a) <code>fs.readFile('a.txt', cb)</code></li>
+<li>b) <code>fs.readFileSync('a.txt')</code></li>
+<li>c) <code>fetch('https://api.example.com')</code></li>
+<li>d) <code>crypto.pbkdf2(...)</code></li>
+</ul>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>b)</strong> 只有 <code>readFileSync</code> 會 block — 它同步跑在主執行緒。<code>fetch</code> 用作業系統層面的非同步網路，<code>pbkdf2</code> 和 <code>readFile</code>（非同步版）都用 thread pool。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 2:</strong> 你的 server 同時啟動 10 個 pbkdf2 呼叫，thread pool 是 4。會發生什麼？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p>前 4 個同時在 thread pool 上跑，剩下的 6 個排隊等。當其中一個完成，下一個才會開始。這是 I/O 密集場景的效能瓶頸 — 可以把 UV_THREADPOOL_SIZE 調大（如果機器有更多核心）。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 3:</strong> 你要平行處理 100 萬筆資料做格式轉換。用 worker_threads 還是 cluster？為什麼？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>worker_threads</strong>。這是單一任務的平行化 — 所有 worker 處理同一份工作的不同分片。worker_threads 共享記憶體（SharedArrayBuffer）省去序列化成本，比 cluster 的 IPC 傳輸快。cluster 適合「多個獨立請求同時進來的 web server」情境。</p></div>
+</div>
+
+<hr>
+
+<h2>Primary Source</h2>
+<ul>
+<li><a href="https://nodejs.org/api/worker_threads.html">Node.js Docs: Worker Threads</a></li>
+<li><a href="https://nodejs.org/api/cluster.html">Node.js Docs: Cluster</a></li>
+<li><a href="https://docs.libuv.org/en/v1.1/design.html">libuv Design Docs</a></li>
+</ul>
+
+<hr>
+
+<p style="color: var(--gray); font-size: 0.85em;">清楚嗎？最後一堂是模擬面試，準備好了嗎？</p>
+
+<script>
+function toggleAnswer(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('show');
+  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+}
+</script>
+
+</body>
+</html>

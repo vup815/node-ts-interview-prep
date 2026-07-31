@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 3: Node.js Streams & Buffers</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<p><span class="tag tag-node">Node.js</span> <span class="tag tag-interview">Interview</span></p>
+
+<h1>Lesson 3: Streams & Buffers</h1>
+<p><em>The second-most-asked Node.js deep-dive topic. Streams are how Node handles large data without eating all your RAM.</em></p>
+<p>Prerequisite: <a href="0001-nodejs-event-loop.html">Lesson 1 (Event Loop)</a></p>
+
+<hr>
+
+<h2>Why This Matters</h2>
+<p>Interviewers ask about streams to test whether you understand how Node handles <strong>real-world data at scale</strong>. Anyone can read a file with <code>readFileSync</code> — knowing when and why to use streams separates backend engineers from scripters.</p>
+
+<hr>
+
+<h2>1. The Problem Streams Solve</h2>
+
+<pre>// Bad — loads entire file into memory
+const fs = require('fs');
+const data = fs.readFileSync('huge-file.log', 'utf8');
+// Memory usage: size of the whole file (could be 500MB)
+
+// Good — processes chunk by chunk
+const readStream = fs.createReadStream('huge-file.log', 'utf8');
+readStream.on('data', (chunk) =&gt; {
+  console.log(`Received ${chunk.length} bytes`);
+});
+// Memory usage: only ~64KB at a time (default highWaterMark)</pre>
+
+<p><strong>Without streams:</strong> you wait for the entire file/response to load into RAM, then process it.<br>
+<strong>With streams:</strong> you process data <strong>as it arrives</strong>, in small chunks.</p>
+
+<div class="callout callout-tip">
+<strong>Interview script:</strong> "Streams let me process data piece-by-piece instead of loading everything into memory. For a 2GB file, streams use ~64KB of RAM. Without streams, the same operation would crash the process."
+</div>
+
+<hr>
+
+<h2>2. The Four Types</h2>
+
+<table>
+<tr><th>Type</th><th>Direction</th><th>Example</th></tr>
+<tr><td><strong>Readable</strong></td><td>Source → you</td><td><code>fs.createReadStream</code>, HTTP request body</td></tr>
+<tr><td><strong>Writable</strong></td><td>You → destination</td><td><code>fs.createWriteStream</code>, HTTP response</td></tr>
+<tr><td><strong>Duplex</strong></td><td>Both directions</td><td>TCP socket, WebSocket</td></tr>
+<tr><td><strong>Transform</strong></td><td>Modify data in transit</td><td><code>zlib.createGzip</code>, encryption</td></tr>
+</table>
+
+<pre>// Readable: read data
+const readable = fs.createReadStream('input.txt');
+
+// Writable: write data
+const writable = fs.createWriteStream('output.txt');
+
+// Duplex: read AND write (like a phone call)
+// Transform: modify data as it passes through (like a translator)
+const { Transform } = require('stream');
+const upperCase = new Transform({
+  transform(chunk, encoding, callback) {
+    callback(null, chunk.toString().toUpperCase());
+  }
+});
+
+// Pipe them together: read → transform → write
+readable.pipe(upperCase).pipe(writable);
+// "hello" → "HELLO" → written to output.txt</pre>
+
+<hr>
+
+<h2>3. Pipe — The Key Concept</h2>
+
+<p><code>.pipe()</code> is the glue. It connects a Readable stream to a Writable stream and handles <strong>backpressure automatically</strong>.</p>
+
+<pre>// Serve a file via HTTP — the classic interview example
+const http = require('http');
+const fs = require('fs');
+
+http.createServer((req, res) =&gt; {
+  // Stream the file directly to the response
+  // No buffering, no waiting for the full file
+  const stream = fs.createReadStream('big-video.mp4');
+  stream.pipe(res);
+}).listen(3000);</pre>
+
+<p><code>stream.pipe(res)</code> does three things:</p>
+<ol>
+<li>Reads chunks from the file</li>
+<li>Writes them to the HTTP response</li>
+<li>Pauses the read if the response is slower than the file read (backpressure)</li>
+</ol>
+
+<hr>
+
+<h2>4. Backpressure — The Tricky Part</h2>
+
+<p><strong>Backpressure</strong> is what happens when the <strong>writer is slower than the reader</strong>. Without it, data would pile up in memory and crash the process.</p>
+
+<pre>// What pipe() does internally:
+const readable = fs.createReadStream('source.txt');
+const writable = fs.createWriteStream('dest.txt');
+
+readable.on('data', (chunk) =&gt; {
+  const canWriteMore = writable.write(chunk);
+  if (!canWriteMore) {
+    // Destination is overwhelmed — pause the source
+    readable.pause();
+    writable.once('drain', () =&gt; {
+      // Destination is ready for more — resume
+      readable.resume();
+    });
+  }
+});</pre>
+
+<div class="callout callout-warn">
+<strong>Interview trap:</strong> If you manually listen to <code>'data'</code> events and <code>.write()</code> without handling backpressure, you'll buffer unlimited data in memory. This is why <code>.pipe()</code> is the safe default — it handles backpressure for you.
+</div>
+
+<div class="callout callout-tip">
+<strong>Interview script:</strong> "Backpressure happens when the writable stream can't keep up with the readable stream. <code>.pipe()</code> handles it automatically — it pauses the source when the internal buffer fills, and resumes on the <code>'drain'</code> event."
+</div>
+
+<hr>
+
+<h2>5. Buffers — Raw Binary Data</h2>
+
+<p>A <strong>Buffer</strong> is a fixed-size chunk of raw memory allocated <strong>outside the V8 heap</strong>. Every stream chunk is a Buffer (unless you specify encoding).</p>
+
+<pre>// Create a buffer from a string
+const buf = Buffer.from('hello');
+console.log(buf);        // &lt;Buffer 68 65 6c 6c 6f&gt;
+console.log(buf.length); // 5
+console.log(buf[0]);     // 104 (ASCII code for 'h')
+
+// Buffers are NOT resizable
+buf[0] = 72;  // 'H' in ASCII
+console.log(buf.toString()); // 'Hello'
+
+// Combine buffers
+const a = Buffer.from('Hello ');
+const b = Buffer.from('World');
+const c = Buffer.concat([a, b]);
+console.log(c.toString()); // 'Hello World'</pre>
+
+<h3>Why Buffers matter in interviews</h3>
+<ul>
+<li>Streams emit Buffers by default — you need to know this</li>
+<li>Buffers live outside V8 — large buffers don't trigger garbage collection on the main thread</li>
+<li><code>buf.toString('utf8')</code> converts to string; <code>Buffer.from(str)</code> converts back</li>
+</ul>
+
+<hr>
+
+<h2>6. Puzzles</h2>
+
+<div class="quiz-question">
+<p><strong>Puzzle 1:</strong> What's the advantage of serving a file via <code>fs.createReadStream().pipe(res)</code> instead of <code>fs.readFile()</code>?</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong> Memory usage. <code>readFile</code> loads the entire file into RAM before sending it. For a 2GB file, that's 2GB of RAM. The stream sends chunks as they're read — RAM usage stays at ~64KB regardless of file size. Also, the response starts faster (first byte arrives before the file is fully read).</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 2:</strong> What type of stream would you use to encrypt data while reading it from a file?</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong> A <strong>Transform</strong> stream. You read from the file (Readable), pass through the encryption Transform, then write to a file or socket (Writable).</p>
+<pre>readable.pipe(encryptTransform).pipe(writable);</pre></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 3:</strong> What happens if you <code>pipe()</code> without the writable handling backpressure?</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong> <code>.pipe()</code> handles backpressure automatically — it pauses the readable when <code>writable.write()</code> returns <code>false</code> and resumes on <code>'drain'</code>. This is built into pipe. The danger is when you manually listen to <code>'data'</code> and call <code>.write()</code> yourself without checking the return value.</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 4:</strong> If a Buffer has 5 bytes, what is <code>Buffer.from('hi').length</code>?</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong> <code>2</code> — each character is 1 byte in UTF-8. Buffer.length === number of bytes, not characters. For multi-byte characters (like '嗨'), it would be more.</p></div>
+</div>
+
+<hr>
+
+<h2>7. Interview Answer Script</h2>
+
+<p>When the interviewer says "Tell me about streams in Node.js":</p>
+
+<blockquote>
+<p>"Streams are how Node handles large data without loading it all into memory. There are four types: Readable, Writable, Duplex, and Transform. The built-in <code>.pipe()</code> method connects them and handles backpressure — when the destination can't keep up, it pauses the source and resumes on the drain event.</p>
+<p>"I use streams for file uploads, log processing, and serving media files. The key advantage is memory efficiency: a 2GB file streamed over HTTP uses ~64KB of RAM. Without streams, the same operation would buffer the entire file in memory or crash.</p>
+<p>"Streams emit Buffers by default — raw binary data allocated outside the V8 heap. I convert to strings with <code>.toString()</code> when I need text, but for binary data (images, video), Buffers are exactly what I want."</p>
+</blockquote>
+
+<hr>
+
+<h2>Primary Sources</h2>
+<ul>
+<li><a href="https://nodejs.org/api/stream.html">Node.js Docs: Stream</a> — authoritative</li>
+<li><a href="https://nodejs.org/api/buffer.html">Node.js Docs: Buffer</a> — Buffer API reference</li>
+</ul>
+
+<hr>
+
+<p style="color: var(--gray); font-size: 0.85em;">Clear? Any part too fast or too slow?</p>
+
+<script>
+function toggleAnswer(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('show');
+  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 2c: More Utility Types — Record, ReturnType, Awaited</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<p><span class="tag tag-ts">TypeScript</span> <span class="tag tag-interview">Interview</span></p>
+
+<h1>Lesson 2c: More Utility Types</h1>
+<p><em>Record, ReturnType, Awaited — same gentle pace as Lesson 2b.</em></p>
+<p>Prerequisite: <a href="0002b-typescript-utility-types-simpler.html">Lesson 2b (Partial, Pick, Omit)</a></p>
+
+<hr>
+
+<h2>1. Record&lt;K, V&gt; — "typed dictionary"</h2>
+
+<pre>// Without Record: index signature
+type RolePermissionsOld = {
+  [role: string]: string[];
+};
+
+// With Record: keys are explicit
+type Role = 'admin' | 'user' | 'guest';
+type RolePermissions = Record&lt;Role, string[]&gt;;</pre>
+
+<p><code>Record&lt;K, V&gt;</code> creates an object type where <strong>every key in K</strong> maps to <strong>value type V</strong>. The keys come from a union type.</p>
+
+<h3>When to use it</h3>
+<p>Any time you want a <strong>lookup table</strong> or <strong>enum-based dictionary</strong>:</p>
+
+<pre>// Config per environment
+type Env = 'development' | 'staging' | 'production';
+type AppConfig = Record&lt;Env, { apiUrl: string; debug: boolean }&gt;;
+
+const config: AppConfig = {
+  development: { apiUrl: 'http://localhost:3000', debug: true },
+  staging:     { apiUrl: 'https://staging.example.com', debug: true },
+  production:  { apiUrl: 'https://example.com', debug: false },
+};
+
+// TypeScript error if you miss an environment:
+// Property 'production' is missing in type '{ development: ...; staging: ...; }'</pre>
+
+<div class="callout callout-tip">
+<strong>Interview script:</strong> "I use <code>Record&lt;K, V&gt;</code> when I need a dictionary with known keys — role permissions, environment configs, HTTP header maps. The compiler catches missing keys."
+</div>
+
+<hr>
+
+<h2>2. ReturnType&lt;T&gt; — "extract a function's return type"</h2>
+
+<pre>function getUser() {
+  return { id: 1, name: 'Ada' };
+}
+
+// Instead of duplicating the type:
+// interface User { id: number; name: string; }
+
+// Derive it from the function:
+type User = ReturnType&lt;typeof getUser&gt;;
+// Result: { id: number; name: string; }</pre>
+
+<h3>When to use it</h3>
+<p><strong>Don't duplicate types</strong> — derive them from the functions that already exist:</p>
+
+<pre>import { createUser } from './api';
+
+function handleCreateUser(name: string, email: string) {
+  // createUser returns Promise&lt;{ id: number; name: string; email: string }&gt;
+  // Without ReturnType, you'd create a separate interface
+  type CreateUserResult = ReturnType&lt;typeof createUser&gt;;
+  // Result: Promise&lt;{ id: number; name: string; email: string }&gt;
+}
+
+// Common pattern: wrap an API function and keep its return type
+async function apiCall&lt;T&gt;(fn: () =&gt; Promise&lt;T&gt;): Promise&lt;T&gt; {
+  try {
+    return await fn();
+  } catch (e) {
+    console.error(e);
+    throw e;
+  }
+}
+
+// ReturnType&lt;typeof fn&gt; is T — the generic handles it automatically
+</pre>
+
+<div class="callout callout-tip">
+<strong>Interview script:</strong> "I use <code>ReturnType&lt;typeof fn&gt;</code> to derive types from existing functions instead of duplicating them. If the function changes, the derived type updates automatically."
+</div>
+
+<hr>
+
+<h2>3. Awaited&lt;T&gt; — "unwrap a Promise"</h2>
+
+<pre>async function fetchUser() {
+  return { id: 1, name: 'Ada' };
+}
+
+// ReturnType alone gives you the Promise:
+type Raw = ReturnType&lt;typeof fetchUser&gt;;
+// Result: Promise&lt;{ id: number; name: string }&gt;
+
+// Awaited unwraps the Promise:
+type User = Awaited&lt;ReturnType&lt;typeof fetchUser&gt;&gt;;
+// Result: { id: number; name: string }</pre>
+
+<h3>Combining ReturnType + Awaited — the real pattern</h3>
+
+<pre>// This is the most common combo in backend code:
+import { getUser, updateUser } from './api';
+
+// Derive the user type from the API function — zero duplication
+type User = Awaited&lt;ReturnType&lt;typeof getUser&gt;&gt;;
+
+// Now use it anywhere:
+function displayUser(user: User) {
+  console.log(user.name);  // typed!
+}
+
+// Even for update payloads:
+type UpdatePayload = Partial&lt;Omit&lt;User, 'id'&gt;&gt;;
+
+function updateCurrentUser(changes: UpdatePayload) {
+  return updateUser(changes);
+}</pre>
+
+<div class="callout callout-tip">
+<strong>Interview script:</strong> "I combine <code>Awaited&lt;ReturnType&lt;typeof fn&gt;&gt;</code> to unwrap async function returns. This means I never manually write an interface that matches what the API already returns — it's derived automatically."
+</div>
+
+<hr>
+
+<h2>4. Summary: All 6 Utility Types So Far</h2>
+
+<table>
+<tr><th>Utility</th><th>What it does</th><th>When to use</th></tr>
+<tr><td><code>Partial&lt;T&gt;</code></td><td>All fields optional</td><td>PATCH requests, partial updates</td></tr>
+<tr><td><code>Pick&lt;T, K&gt;</code></td><td>Keep only these keys</td><td>API responses (safe projection)</td></tr>
+<tr><td><code>Omit&lt;T, K&gt;</code></td><td>Remove these keys</td><td>Hide sensitive/internal fields</td></tr>
+<tr><td><code>Record&lt;K, V&gt;</code></td><td>Dict with known keys</td><td>Configs, permissions, lookups</td></tr>
+<tr><td><code>ReturnType&lt;T&gt;</code></td><td>Get function's return type</td><td>Derive from existing functions</td></tr>
+<tr><td><code>Awaited&lt;T&gt;</code></td><td>Unwrap Promise</td><td>Combine with ReturnType for async</td></tr>
+</table>
+
+<hr>
+
+<h2>5. Puzzles</h2>
+
+<div class="quiz-question">
+<p><strong>Puzzle 1:</strong> What type does <code>Record&lt;'x' | 'y', number&gt;</code> produce?</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong> <code>{ x: number; y: number; }</code></p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 2:</strong> What's the type of <code>Item</code>?</p>
+<pre>function fetchItem() {
+  return Promise.resolve({ id: 1, name: 'Widget', price: 9.99 });
+}
+
+type Item = Awaited&lt;ReturnType&lt;typeof fetchItem&gt;&gt;;</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong> <code>{ id: number; name: string; price: number; }</code></p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 3:</strong> Your team has a function <code>getSession()</code> that returns <code>Promise&lt;{ userId: number; token: string; expiresAt: number }&gt;</code>. You need a type for the session without the token. Write the type using utility types.</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong></p>
+<pre>type Session = Awaited&lt;ReturnType&lt;typeof getSession&gt;&gt;;
+type SafeSession = Omit&lt;Session, 'token'&gt;;</pre></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 4:</strong> Why does this fail?</p>
+<pre>type Status = 'pending' | 'approved' | 'rejected';
+const statusMessages: Record&lt;Status, string&gt; = {
+  pending:  'Waiting for review',
+  approved: 'Changes approved',
+  // Error: Property 'rejected' is missing
+};</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong> <code>Record&lt;Status, string&gt;</code> requires every key in the <code>Status</code> union to be present. <code>rejected</code> is missing, so TypeScript errors. This is the feature — not a bug — it prevents incomplete configurations.</p></div>
+</div>
+
+<hr>
+
+<h2>6. Interview Answer Script</h2>
+
+<p>When the interviewer says "What utility types do you use in a backend context":</p>
+
+<blockquote>
+<p>"I combine three patterns. First, <code>Record&lt;K, V&gt;</code> for typed dictionaries — environment configs, role permissions, HTTP status code maps. The compiler enforces that every key is present.</p>
+<p>"Second, <code>ReturnType&lt;typeof fn&gt;</code> to derive types from existing API functions. When I wrap <code>fetchUser</code> in a middleware, I don't manually redefine the return type — I derive it.</p>
+<p>"Third, <code>Awaited&lt;ReturnType&lt;typeof fn&gt;&gt;</code> to unwrap async functions. This is the backbone of my type strategy: one source of truth (the API function), zero manually-duplicated types."</p>
+</blockquote>
+
+<hr>
+
+<h2>Primary Source</h2>
+<ul>
+<li><a href="https://www.typescriptlang.org/docs/handbook/utility-types.html">TS Handbook: Utility Types</a> — read Record, ReturnType, Awaited</li>
+</ul>
+
+<hr>
+
+<p style="color: var(--gray); font-size: 0.85em;">Clear enough? Tell me if anything is still fuzzy — happy to adjust the pace again.</p>
+
+<script>
+function toggleAnswer(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('show');
+  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+}
+</script>
+
+</body>
+</html>

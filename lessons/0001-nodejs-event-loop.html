@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 1: Node.js Event Loop — Deep Dive</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<p><span class="tag tag-node">Node.js</span> <span class="tag tag-interview">Interview</span></p>
+
+<h1>Lesson 1: The Event Loop</h1>
+<p><em>The single highest-signal topic in Node.js interviews. If you control the event-loop conversation, you control the round.</em></p>
+<p>Mission: Backend engineer interview prep</p>
+
+<hr>
+
+<h2>Why This Matters</h2>
+<p>Every Node.js interview includes at least one output-order puzzle or "explain how async works" question. Interviewers report that the event loop is the #1 separator between surface-level and deep understanding. This lesson gives you both the mental model and the verbal script.</p>
+
+<hr>
+
+<h2>1. The Mental Model</h2>
+
+<h3>Single thread + libuv</h3>
+<p>JavaScript runs on <strong>one thread</strong>. It cannot do two things at once. When you call <code>fs.readFile</code> or <code>setTimeout</code>, Node hands the work to <strong>libuv</strong> — a C library that manages I/O, timers, and a thread pool. When the work finishes, libuv queues a callback and the event loop picks it up when the JS call stack is empty.</p>
+
+<div class="callout callout-tip">
+<strong>Key insight:</strong> "Single-threaded" means your <em>JavaScript</em> runs on one thread. libuv's thread pool (default: 4 threads) handles blocking operations. The event loop is the bridge between them.
+</div>
+
+<h3>The Six Phases</h3>
+<p>The event loop cycles through six phases. The three you'll be asked about in interviews:</p>
+
+<table>
+<tr><th>Phase</th><th>What runs</th><th>Key API</th></tr>
+<tr><td><strong>timers</strong></td><td>Callbacks from expired <code>setTimeout</code> / <code>setInterval</code></td><td><code>setTimeout(fn, 0)</code></td></tr>
+<tr><td><strong>pending callbacks</strong></td><td>Deferred system callbacks (e.g., TCP errors)</td><td><em>internal</em></td></tr>
+<tr><td><strong>idle / prepare</strong></td><td>Internal libuv bookkeeping</td><td><em>internal</em></td></tr>
+<tr><td><strong>poll</strong></td><td>I/O callbacks (file reads, network, etc.)</td><td><code>fs.readFile</code>, <code>http</code></td></tr>
+<tr><td><strong>check</strong></td><td><code>setImmediate</code> callbacks</td><td><code>setImmediate(fn)</code></td></tr>
+<tr><td><strong>close callbacks</strong></td><td>Cleanup events (e.g., <code>socket.on('close')</code>)</td><td><em>internal</em></td></tr>
+</table>
+
+<h3>Microtasks — The Trap Door</h3>
+<p>Between <em>every</em> phase, the event loop checks the microtask queues. They have <strong>higher priority</strong> than any macrotask.</p>
+
+<table>
+<tr><th>Queue</th><th>Priority</th><th>API</th></tr>
+<tr><td><code>nextTick</code> queue</td><td>Highest</td><td><code>process.nextTick(fn)</code></td></tr>
+<tr><td>Promise microtask queue</td><td>Second</td><td><code>Promise.resolve().then(fn)</code>, <code>queueMicrotask(fn)</code>, <code>await</code></td></tr>
+</table>
+
+<h3>Full Execution Order</h3>
+<pre>
+1. Run current synchronous code (call stack)
+2. Drain entire nextTick queue
+3. Drain entire promise microtask queue
+4. Run one macrotask from current phase (e.g., one timer callback)
+5. Drain entire nextTick queue again
+6. Drain entire promise microtask queue again
+7. Move to next phase, repeat from step 4
+</pre>
+
+<div class="callout callout-warn">
+<strong>Starving the loop:</strong> Recursive <code>process.nextTick</code> <em>before</em> the event loop advances prevents the poll phase from running. This is why Node warns about it. Use <code>setImmediate</code> instead to yield to I/O.
+</div>
+
+<hr>
+
+<h2>2. The One Diagram to Memorize</h2>
+
+<pre>
+   ┌───────────────────────────┐
+┌─&gt;│           timers          │  ← setTimeout / setInterval
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │     pending callbacks     │  ← internal
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │       idle, prepare       │  ← internal
+│  └─────────────┬─────────────┘      ┌──────────────┐
+│  ┌─────────────┴─────────────┐      │   microtasks  │
+│  │           poll            │←─────┤  (nextTick +  │
+│  │  (I/O callbacks)          │      │   promises)   │
+│  └─────────────┬─────────────┘      │  drain between│
+│  ┌─────────────┴─────────────┐      │  EVERY phase  │
+│  │          check            │      └──────────────┘
+│  │  (setImmediate)           │
+│  └─────────────┬─────────────┘
+│  ┌─────────────┴─────────────┐
+│  │      close callbacks      │
+│  └───────────────────────────┘
+└─────────────────────────────── loop continues
+</pre>
+
+<hr>
+
+<h2>3. Output-Order Puzzles</h2>
+<p>Try each puzzle. Predict the output <em>out loud</em> before clicking to reveal.</p>
+
+<div class="quiz-question">
+<p><strong>Puzzle 1:</strong> Basic ordering</p>
+<pre>
+console.log('1');
+
+setTimeout(() =&gt; console.log('2'), 0);
+
+Promise.resolve().then(() =&gt; console.log('3'));
+
+console.log('4');</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Output:</strong> <code>1, 4, 3, 2</code></p>
+<p><strong>Why:</strong> <code>1</code> and <code>4</code> run synchronously first. Promise <code>.then</code> is a microtask — runs after the call stack is empty, before the next macrotask. <code>setTimeout(0)</code> is a macrotask — it runs in the next timers phase.</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 2:</strong> nextTick vs Promise</p>
+<pre>
+Promise.resolve().then(() =&gt; console.log('promise'));
+process.nextTick(() =&gt; console.log('nextTick'));
+console.log('sync');</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Output:</strong> <code>sync, nextTick, promise</code></p>
+<p><strong>Why:</strong> <code>sync</code> runs first. The nextTick queue drains <em>before</em> the promise queue — nextTick has higher priority among microtasks.</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 3:</strong> Inside an I/O callback — setImmediate vs setTimeout</p>
+<pre>
+const fs = require('fs');
+fs.readFile(__filename, () =&gt; {
+  setTimeout(() =&gt; console.log('timeout'), 0);
+  setImmediate(() =&gt; console.log('immediate'));
+});</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Output:</strong> <code>immediate, timeout</code></p>
+<p><strong>Why:</strong> Inside an I/O callback, the event loop is in the <strong>poll</strong> phase. After poll, it moves to <strong>check</strong> (setImmediate), then <strong>close callbacks</strong>, then back to <strong>timers</strong> (setTimeout). So <code>setImmediate</code> always wins inside I/O.</p>
+<p><em>Outside</em> I/O, the order of setTimeout vs setImmediate is <strong>non-deterministic</strong> — it depends on how long the timer takes to enter the timers phase.</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 4:</strong> Nested microtasks</p>
+<pre>
+process.nextTick(() =&gt; {
+  console.log('nextTick 1');
+  process.nextTick(() =&gt; console.log('nextTick 2'));
+});
+
+Promise.resolve().then(() =&gt; {
+  console.log('promise 1');
+  process.nextTick(() =&gt; console.log('nextTick 3'));
+});
+
+console.log('sync');</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Output:</strong> <code>sync, nextTick 1, nextTick 2, promise 1, nextTick 3</code></p>
+<p><strong>Why:</strong> The entire nextTick queue drains <em>before</em> the promise queue starts. Even though <code>nextTick 2</code> is enqueued inside a nextTick callback, it drains in the same microtask drain. After the nextTick queue is empty, the promise queue starts. But <code>nextTick 3</code> is enqueued inside a promise callback — it runs in the <em>next</em> microtask drain (after the promise queue empties, before the next phase).</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 5:</strong> Async/await — the trap</p>
+<pre>
+async function foo() {
+  console.log('a');
+  await bar();
+  console.log('c');
+}
+
+async function bar() {
+  console.log('b');
+}
+
+foo();
+console.log('d');</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Output:</strong> <code>a, b, d, c</code></p>
+<p><strong>Why:</strong> <code>foo()</code> runs synchronously until it hits <code>await</code>. <code>console.log('a')</code> runs, then <code>bar()</code> is called. <code>bar()</code> runs synchronously (<code>console.log('b')</code>) and returns a resolved promise. The <code>await</code> <em>suspends</em> <code>foo</code> and returns execution to the caller. <code>console.log('d')</code> runs. The continuation of <code>foo</code> (the part after await) is queued as a microtask. It runs after the call stack empties.</p>
+<p><strong>Interview trap:</strong> Many candidates think <code>c</code> runs before <code>d</code>. They miss that <code>await</code> yields to the caller.</p></div>
+</div>
+
+<hr>
+
+<h2>4. Interview Answer Script</h2>
+
+<p>When the interviewer asks "Explain the event loop," here's your script:</p>
+
+<blockquote>
+<p>"The event loop is what lets Node.js handle thousands of concurrent connections on a single thread. libuv — the C library underneath — actually runs the loop, cycling through phases: timers, pending callbacks, poll, check, and close. Each phase has a FIFO queue of callbacks.</p>
+<p>"Between each phase, Node drains two microtask queues: first <code>process.nextTick</code>, then promise microtasks. This is why <code>nextTick</code> runs before <code>.then</code> callbacks, and why a deeply recursive <code>nextTick</code> can starve I/O.</p>
+<p>"The key mental model: synchronously queued microtasks run before any macrotask. So <code>Promise.resolve().then(...)</code> runs before <code>setTimeout(...)</code>, even with a zero delay. And inside an I/O callback, <code>setImmediate</code> fires before the next <code>setTimeout</code> because check phase comes before the next timers phase."</p>
+</blockquote>
+
+<p><strong>Why this script works:</strong> It mentions libuv (shows depth), names the phases (shows structure), explains microtask vs macrotask (shows precision), and gives an example (shows practical understanding). This is the arc of a strong answer.</p>
+
+<hr>
+
+<h2>5. Common Follow-Up Questions</h2>
+
+<div class="quiz-question">
+<p><strong>Q:</strong> "What runs on the libuv thread pool?"</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>A:</strong> File system operations (<code>fs</code>), DNS (<code>dns.lookup</code>), and some crypto (<code>crypto.pbkdf2</code>, <code>crypto.randomBytes</code>). Network I/O (HTTP, TCP) uses the OS kernel — no thread pool.</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Q:</strong> "What happens when the poll phase has no timers and no I/O?"</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>A:</strong> The poll phase checks for <code>setImmediate</code> callbacks. If any exist, it immediately moves to the check phase. If none, it blocks waiting for I/O events. If a timer is expiring soon, it skips the wait and moves to the timers phase.</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Q:</strong> "Does the event loop run forever?"</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>A:</strong> No. The event loop stops when there are no more handles (timers, I/O sockets) or requests to process. The loop calls <code>uv_run</code> — when libuv returns, Node exits.</p></div>
+</div>
+
+<hr>
+
+<h2>6. Next Steps</h2>
+<p>After this lesson, you should be able to:</p>
+<ul>
+<li>Draw the event-loop phases from memory</li>
+<li>Explain microtask vs macrotask ordering</li>
+<li>Solve any output-order puzzle in an interview</li>
+<li>Answer "explain the event loop" with the script above</li>
+</ul>
+<p>Open a Node REPL and experiment with the puzzles above. Change the ordering. Add <code>setImmediate</code>. Add more <code>nextTick</code> calls. Predict the output before running.</p>
+
+<hr>
+
+<h2>Primary Source</h2>
+<p><a href="https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick">Node.js Official Documentation: Event Loop, Timers, and process.nextTick()</a> — The one source to read. It's authoritative, short, and the exact mental model interviewers expect.</p>
+<p>Also watch: <a href="https://www.youtube.com/watch?v=cCOL7MC4Pl0">Jake Archibald: In The Loop (JSConf.Asia 2018)</a> — the clearest explanation of event loop + microtasks. Browser-focused but the mental model transfers directly.</p>
+
+<hr>
+
+<p style="color: var(--gray); font-size: 0.85em;">Stuck? Something unclear? Ask your teacher (the agent) — that's what they're here for.</p>
+
+<script>
+function toggleAnswer(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('show');
+  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+}
+</script>
+
+</body>
+</html>

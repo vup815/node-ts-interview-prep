@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 2: TypeScript Generics &amp; Utility Types</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<p><span class="tag tag-ts">TypeScript</span> <span class="tag tag-interview">Interview</span></p>
+
+<h1>Lesson 2: Generics &amp; Utility Types</h1>
+<p><em>The gatekeeper topic in TypeScript rounds. Mid-to-senior interviews live here — this is where candidates get filtered.</em></p>
+<p>Mission: See also: <a href="../reference/glossary.html">Glossary</a></p>
+
+<hr>
+
+<h2>Why This Matters</h2>
+<p>Interviewers report that ~35% of TypeScript questions focus on the type system — generics, unions, and utility types. A candidate who can write a generic helper and compose utility types demonstrates real TS depth, not just surface familiarity. This lesson gets you there.</p>
+
+<hr>
+
+<h2>1. Generics: The Core Idea</h2>
+<p>Generics are <strong>type parameters</strong>. They let a function, class, or type work with any input type while preserving the relationship between input and output.</p>
+
+<pre>function identity&lt;T&gt;(value: T): T {
+  return value;
+}
+
+const num = identity(42);       // type: number
+const str = identity("hello");  // type: string</pre>
+
+<p>Without generics, you'd use <code>any</code> and lose all type safety. With generics, TypeScript <strong>infers</strong> the type from usage.</p>
+
+<h3>Constraints</h3>
+<p>Use <code>extends</code> to limit what types are allowed while staying generic:</p>
+
+<pre>function getProperty&lt;T, K extends keyof T&gt;(obj: T, key: K): T[K] {
+  return obj[key];
+}
+
+const user = { name: "Ada", age: 30 };
+getProperty(user, "name");  // OK, returns string
+getProperty(user, "email"); // Error: 'email' not in keyof User</pre>
+
+<div class="callout callout-tip">
+<strong>Interview inflection:</strong> "I use <code>extends keyof T</code> to constrain the key parameter so callers get autocomplete and I get type-safe access. Without it, <code>key</code> would be <code>string</code> and the return type would be <code>T[string]</code> instead of the specific property type."
+</div>
+
+<h3>Multiple Type Parameters</h3>
+
+<pre>function pair&lt;A, B&gt;(a: A, b: B): [A, B] {
+  return [a, b];
+}
+
+const p = pair(42, "hello"); // type: [number, string]</pre>
+
+<hr>
+
+<h2>2. Built-In Utility Types</h2>
+<p>These are the most commonly asked utility types. You need to know <em>what each does</em> and <em>when to reach for it</em>.</p>
+
+<table>
+<tr><th>Utility</th><th>What it does</th><th>Example</th></tr>
+<tr><td><code>Partial&lt;T&gt;</code></td><td>All properties optional</td><td>PATCH request body</td></tr>
+<tr><td><code>Required&lt;T&gt;</code></td><td>All properties required</td><td>Strict config validation</td></tr>
+<tr><td><code>Readonly&lt;T&gt;</code></td><td>All properties readonly (shallow)</td><td>Immutable snapshots</td></tr>
+<tr><td><code>Pick&lt;T, K&gt;</code></td><td>Select subset of keys</td><td>DTO projection</td></tr>
+<tr><td><code>Omit&lt;T, K&gt;</code></td><td>Remove subset of keys</td><td>Exclude sensitive fields</td></tr>
+<tr><td><code>Record&lt;K, V&gt;</code></td><td>Object type with keys K, values V</td><td>Dictionary / lookup</td></tr>
+<tr><td><code>ReturnType&lt;T&gt;</code></td><td>Extract return type of function</td><td>Derive from <code>typeof fn</code></td></tr>
+<tr><td><code>Parameters&lt;T&gt;</code></td><td>Extract parameter types as tuple</td><td>Wrapper / middleware</td></tr>
+<tr><td><code>Awaited&lt;T&gt;</code></td><td>Unwrap Promise type</td><td>Async function return</td></tr>
+<tr><td><code>Exclude&lt;T, U&gt;</code></td><td>Remove members of U from union T</td><td>Filter union members</td></tr>
+</table>
+
+<h3>Real-world patterns</h3>
+
+<pre>// PATCH endpoint — only send updated fields
+interface User { id: number; name: string; email: string; }
+type UpdateUserPayload = Partial&lt;Omit&lt;User, 'id'&gt;&gt;;
+
+// Derive type from an existing function (no duplication)
+async function fetchUser(id: number): Promise&lt;User&gt; { ... }
+type FetchUserResult = Awaited&lt;ReturnType&lt;typeof fetchUser&gt;&gt;; // User
+
+// Typed dictionary
+type Role = 'admin' | 'user' | 'guest';
+type Permissions = Record&lt;Role, string[]&gt;;
+</pre>
+
+<div class="callout callout-warn">
+<strong>Shallow trap:</strong> <code>Partial&lt;T&gt;</code> and <code>Readonly&lt;T&gt;</code> are <strong>shallow</strong>. They only affect the top level. For nested objects, you need a recursive deep version — interviewers love this as a follow-up.
+</div>
+
+<hr>
+
+<h2>3. How Utility Types Work (Mapped Types)</h2>
+<p>Utility types aren't magic — they're <strong>mapped types</strong>. Understand the pattern and you can write any utility.</p>
+
+<pre>// Pick from scratch — iterate over keys K, keep their types
+type MyPick&lt;T, K extends keyof T&gt; = {
+  [P in K]: T[P];
+};
+
+// Partial from scratch — make every key optional
+type MyPartial&lt;T&gt; = {
+  [P in keyof T]?: T[P];
+};
+
+// Record from scratch — map keys K to values V
+type MyRecord&lt;K extends keyof any, V&gt; = {
+  [P in K]: V;
+};</pre>
+
+<p>The syntax <code>[P in keyof T]</code> means "for each property P in T." The <code>?</code> modifier makes it optional. <code>readonly</code> works the same way.</p>
+
+<div class="callout callout-tip">
+<strong>Interview script:</strong> "Mapped types iterate over keys with <code>[K in keyof T]</code>. That's how <code>Partial</code>, <code>Pick</code>, and <code>Record</code> work internally. If an interviewer asks me to implement <code>Pick</code>, I write <code>{ [P in K]: T[P] }</code> with a constraint <code>K extends keyof T</code>."
+</div>
+
+<hr>
+
+<h2>4. Discriminated Unions</h2>
+<p>A <strong>discriminated union</strong> is a union type where each member has a literal property (the "discriminant") that TypeScript uses to narrow in <code>switch</code> / <code>if</code> blocks.</p>
+
+<pre>type ApiResult&lt;T&gt; =
+  | { status: 'success'; data: T }
+  | { status: 'error'; message: string }
+  | { status: 'loading' };
+
+function handleResult(result: ApiResult&lt;User&gt;) {
+  switch (result.status) {
+    case 'success':
+      // result.data is typed as User — narrowed by status
+      console.log(result.data.name);
+      break;
+    case 'error':
+      // result.message is typed as string
+      console.error(result.message);
+      break;
+    case 'loading':
+      // No data or message — only this variant
+      break;
+  }
+}</pre>
+
+<div class="callout callout-warn">
+<strong>Exhaustiveness check:</strong> Add a <code>default</code> branch with <code>never</code> to catch when you add a new variant but forget to handle it:
+<pre>default: const _exhaustive: never = result; // Error if a case is missing</pre>
+</div>
+
+<hr>
+
+<h2>5. Conditional Types</h2>
+<p>Types that depend on a condition — like a ternary at the type level.</p>
+
+<pre>// If T is a string, resolve to 'yes', otherwise 'no'
+type IsString&lt;T&gt; = T extends string ? true : false;
+type A = IsString&lt;'hello'&gt;;  // true
+type B = IsString&lt;42&gt;;       // false
+
+// Extract element type from an array
+type Flatten&lt;T&gt; = T extends Array&lt;infer U&gt; ? U : T;
+type C = Flatten&lt;string[]&gt;;  // string
+type D = Flatten&lt;number&gt;;    // number</pre>
+
+<p>The <code>infer</code> keyword captures a type variable inside the conditional — used to extract Promise values, function returns, array elements.</p>
+
+<hr>
+
+<h2>6. Interactive Puzzles</h2>
+
+<div class="quiz-question">
+<p><strong>Puzzle 1:</strong> What is the type of <code>result</code>?</p>
+<pre>interface User { id: number; name: string; email: string; }
+type Result = Pick&lt;User, 'id' | 'name'&gt;;</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong> <code>{ id: number; name: string; }</code></p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 2:</strong> What's wrong with this code?</p>
+<pre>function first&lt;T&gt;(arr: T[]): T {
+  return arr[0];
+}
+
+const val = first([1, 2, 3]); // type: number — OK
+
+first([1, 'a', true]); // what type is inferred?</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong> <code>number | string | boolean</code> — TypeScript infers the union of all element types. This is actually correct behavior: generics preserve the relationship, and the element types are mixed.</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 3:</strong> Implement <code>Omit</code> from scratch using <code>Pick</code> and <code>Exclude</code>.</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong></p>
+<pre>type MyOmit&lt;T, K extends keyof T&gt; = Pick&lt;T, Exclude&lt;keyof T, K&gt;&gt;;</pre>
+<p>Internally, <code>Exclude&lt;keyof T, K&gt;</code> removes the excluded keys from the union of all keys. Then <code>Pick</code> selects only the remaining keys.</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 4:</strong> What does this mapped type do?</p>
+<pre>type Nullable&lt;T&gt; = {
+  [K in keyof T]: T[K] | null;
+};
+
+type User = { id: number; name: string };
+type Result = Nullable&lt;User&gt;;</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong> <code>{ id: number | null; name: string | null; }</code> — every property becomes nullable. This is a custom mapped type (not built-in) but follows the same pattern as <code>Partial</code> and <code>Readonly</code>.</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 5:</strong> Narrowing with discriminated union</p>
+<pre>type Shape =
+  | { kind: 'circle'; radius: number }
+  | { kind: 'square'; side: number };
+
+function area(s: Shape): number {
+  // What goes here?
+}</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>Answer:</strong></p>
+<pre>function area(s: Shape): number {
+  switch (s.kind) {
+    case 'circle':
+      return Math.PI * s.radius ** 2;
+    case 'square':
+      return s.side ** 2;
+    default:
+      const _exhaustive: never = s;
+      return _exhaustive;
+  }
+}</pre>
+<p>TypeScript narrows <code>s</code> inside each <code>case</code> — <code>s.radius</code> exists only inside <code>case 'circle'</code>, <code>s.side</code> only inside <code>case 'square'</code>. The <code>default: never</code> catches missing cases at compile time.</p></div>
+</div>
+
+<hr>
+
+<h2>7. Interview Answer Script</h2>
+
+<p>When the interviewer asks "Tell me about generics and utility types":</p>
+
+<blockquote>
+<p>"Generics are type parameters — they let me write a function or type that works with any input while preserving the type relationship. I use <code>extends</code> to constrain when I need access to specific properties.</p>
+<p>"For utility types, I reach for <code>Partial</code> on PATCH bodies, <code>Pick</code> and <code>Omit</code> for DTO projections, <code>Record</code> for typed dictionaries, and <code>ReturnType</code> combined with <code>Awaited</code> to derive types from existing functions instead of duplicating them.</p>
+<p>"I know these work via mapped types — <code>[K in keyof T]</code> — and I can implement <code>Pick</code> or <code>Partial</code> from scratch if needed. For complex state, I use discriminated unions with an exhaustiveness check so the compiler catches unhandled cases."</p>
+</blockquote>
+
+<hr>
+
+<h2>8. Common Follow-Up Questions</h2>
+
+<div class="quiz-question">
+<p><strong>Q:</strong> "What's the difference between <code>type</code> and <code>interface</code>?"</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>A:</strong> <code>interface</code> supports declaration merging (reopening) and is conventional for object shapes. <code>type</code> is more flexible — it handles unions, tuples, mapped types, and primitives. Use <code>interface</code> for public APIs you may extend; <code>type</code> for everything else.</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Q:</strong> "How would you type an API response that could succeed or fail?"</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>A:</strong> A discriminated union: <code>{ ok: true; data: T } | { ok: false; error: string }</code>. Narrow on <code>ok</code>. Add a third variant like <code>{ ok: 'loading' }</code> for async states. This gives compile-time safety — no invalid property access.</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Q:</strong> "What does <code>satisfies</code> do (TS 4.9+)?"</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p><strong>A:</strong> <code>satisfies</code> checks that a value conforms to a type <em>without</em> widening it. Example: <code>const config = { port: 3000 } satisfies Record&lt;string, unknown&gt;</code> — <code>config.port</code> stays <code>number</code>, not <code>unknown</code>. Use it to validate an object's shape while keeping the narrowest types.</p></div>
+</div>
+
+<hr>
+
+<h2>9. Next Steps</h2>
+<p>After this lesson, you should be able to:</p>
+<ul>
+<li>Write generic functions with constraints</li>
+<li>Use the 9 utility types from memory and explain when to use each</li>
+<li>Implement <code>Pick</code> and <code>Partial</code> from scratch using mapped types</li>
+<li>Model API state with discriminated unions</li>
+<li>Explain <code>infer</code> in conditional types</li>
+</ul>
+<p>Open the <a href="https://www.typescriptlang.org/play/">TypeScript Playground</a> and type out the puzzles. Change things. Predict the type errors — then verify.</p>
+
+<hr>
+
+<h2>Primary Sources</h2>
+<ul>
+<li><a href="https://www.typescriptlang.org/docs/handbook/2/generics.html">TS Handbook: Generics</a> — the official word</li>
+<li><a href="https://www.typescriptlang.org/docs/handbook/utility-types.html">TS Handbook: Utility Types</a> — complete reference</li>
+<li><a href="https://www.typescriptlang.org/docs/handbook/2/narrowing.html">TS Handbook: Narrowing</a> — discriminated unions, type guards</li>
+</ul>
+
+<hr>
+
+<p style="color: var(--gray); font-size: 0.85em;">Stuck? Something unclear? Ask your teacher (the agent).</p>
+
+<script>
+function toggleAnswer(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('show');
+  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+}
+</script>
+
+</body>
+</html>

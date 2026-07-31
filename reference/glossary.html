@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glossary — Node.js &amp; TypeScript Interview Prep</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<h1>Glossary</h1>
+<p>Canonical terms for this workspace. All lessons adhere to these definitions.</p>
+
+<h2>Node.js Runtime</h2>
+
+<p><strong>Event loop</strong>:
+The mechanism by which Node.js processes asynchronous callbacks on a single thread. It cycles through phases (timers → pending → poll → check → close), draining microtask queues between each phase.</p>
+
+<p><strong>Phase</strong>:
+A stage of the event loop that processes a specific category of callbacks. The six phases are <em>timers</em>, <em>pending callbacks</em>, <em>idle/prepare</em> (internal), <em>poll</em>, <em>check</em>, and <em>close callbacks</em>.</p>
+
+<p><strong>libuv</strong>:
+The C library that implements the event loop and the thread pool. Node delegates I/O, timers, and some system calls to libuv.</p>
+
+<p><strong>Microtask</strong>:
+A high-priority callback that runs <em>between</em> event-loop phases, before the next macrotask. Includes <code>process.nextTick</code> (highest priority) and <code>Promise.then</code>/<code>queueMicrotask</code>.</p>
+
+<p><strong>Macrotask</strong>:
+A callback queued by <code>setTimeout</code>, <code>setInterval</code>, <code>setImmediate</code>, or I/O. Macrotasks run during their respective event-loop phase, one per iteration.</p>
+
+<p><strong>process.nextTick</strong>:
+A microtask that runs <em>before</em> the next event-loop phase — even before promise microtasks. Overuse can starve I/O.</p>
+
+<p><strong>setImmediate</strong>:
+A macrotask that fires during the <em>check</em> phase (after poll). Use it to defer work until after I/O callbacks have run.</p>
+
+<p><strong>Thread pool</strong>:
+Four (by default) worker threads managed by libuv, used for CPU-heavy or blocking operations (fs, crypto, DNS). Not to be confused with the single JS thread.</p>
+
+<p><strong>Stream</strong>:
+An abstract interface for reading/writing data piece-by-piece. Four types: <em>Readable</em>, <em>Writable</em>, <em>Duplex</em>, <em>Transform</em>.</p>
+
+<p><strong>Backpressure</strong>:
+When a Writable stream cannot keep up with a Readable stream. Node handles it via <code>highWaterMark</code> and <code>drain</code> events.</p>
+
+<p><strong>Buffer</strong>:
+A fixed-size chunk of raw binary data allocated outside the V8 heap. Used for streams, file I/O, and network data.</p>
+
+<p><strong>EventEmitter</strong>:
+The pattern Node uses for pub/sub. Many core modules (<code>stream</code>, <code>http</code>, <code>fs</code>) extend it.</p>
+
+<h2>TypeScript</h2>
+
+<p><strong>Generic</strong>:
+A type parameter that makes a function, class, or type work with any type while preserving type safety. Written as <code>&lt;T&gt;</code>.</p>
+
+<p><strong>Constraint</strong>:
+A restriction on a generic type parameter via <code>extends</code>. Example: <code>&lt;T extends { length: number }&gt;</code>.</p>
+
+<p><strong>Utility type</strong>:
+A built-in generic type that transforms another type. Common ones: <code>Partial&lt;T&gt;</code>, <code>Required&lt;T&gt;</code>, <code>Pick&lt;T, K&gt;</code>, <code>Omit&lt;T, K&gt;</code>, <code>Record&lt;K, V&gt;</code>, <code>ReturnType&lt;T&gt;</code>, <code>Parameters&lt;T&gt;</code>, <code>Awaited&lt;T&gt;</code>.</p>
+
+<p><strong>Narrowing</strong>:
+The process of refining a union type to a more specific type using type guards (<code>typeof</code>, <code>instanceof</code>, <code>in</code>, discriminated unions).</p>
+
+<p><strong>Discriminated union</strong>:
+A union of object types where each member has a literal property (the "discriminant") that TypeScript can use to narrow. Example: <code>{ kind: 'success'; data: T } | { kind: 'error'; message: string }</code>.</p>
+
+<p><strong>Type guard</strong>:
+An expression that performs runtime checks to guarantee the type in a scope. Includes user-defined type predicates (<code>is T</code>).</p>
+
+<p><strong>Mapped type</strong>:
+A type that iterates over keys of another type, transforming its properties. Example: <code>{ [K in keyof T]: T[K] | null }</code>.</p>
+
+<p><strong>Conditional type</strong>:
+A type that selects between two branches based on a condition. Example: <code>T extends string ? 'yes' : 'no'</code>.</p>
+
+<p><strong>structural typing</strong>:
+TypeScript's type-compatibility system: two types are compatible if their <em>shapes</em> match, not their names. Also called "duck typing."</p>
+
+<p><strong><code>satisfies</code></strong>:
+A TS 4.9+ operator that checks a value's type against a constraint <em>without</em> widening. Example: <code>const config = { port: 3000 } satisfies Record&lt;string, unknown&gt;</code> preserves the literal type of <code>port</code>.</p>
+
+<p style="margin-top: 2rem; font-size: 0.85em; color: var(--gray);">See <a href="https://www.typescriptlang.org/docs/handbook/utility-types.html">TS Handbook: Utility Types</a> · <a href="https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick">Node.js: Event Loop docs</a></p>
+
+</body>
+</html>

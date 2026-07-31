@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 7: Node.js Error Handling</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<p><span class="tag tag-node">Node.js</span> <span class="tag tag-interview">Interview</span></p>
+
+<h1>Lesson 7: Error Handling</h1>
+<p><em>後端面試必考。錯誤處理方式錯了，程式在 production 會神秘當掉。</em></p>
+<p>Prerequisite: <a href="0001-nodejs-event-loop.html">Lesson 1 (event loop)</a></p>
+
+<hr>
+
+<h2>為什麼重要</h2>
+<p>Node.js 的錯誤處理有一個關鍵規則：<strong>unhandled error 會讓 process 崩潰</strong>。了解錯誤怎麼傳遞、怎麼接住，是區分「會寫 code」和「會寫 production code」的分界線。</p>
+
+<hr>
+
+<h2>1. 三大錯誤類型</h2>
+
+<table>
+<tr><th>類型</th><th>例子</th><th>該怎麼處理</th></tr>
+<tr><td><strong>同步</strong></td><td><code>JSON.parse</code>、`throw`</td><td>try/catch</td></tr>
+<tr><td><strong>非同步（callback）</strong></td><td><code>fs.readFile</code></td><td>error-first callback</td></tr>
+<tr><td><strong>非同步（Promise）</strong></td><td><code>fetch</code>、async 函式</td><td>.catch / try/catch on await</td></tr>
+</table>
+
+<h3>同步錯誤</h3>
+<pre>try {
+  JSON.parse('{invalid json}')
+} catch (err) {
+  console.error('parse failed:', err.message)
+}
+// 同步錯誤可以被 try/catch 接住</pre>
+
+<h3>Callback 錯誤：error-first 慣例</h3>
+<pre>const fs = require('fs')
+
+// Node 的慣例：callback 的第一個參數一定是 error（如果沒有錯就是 null）
+fs.readFile('file.txt', (err, data) =&gt; {
+  if (err) {
+    console.error('讀取失敗', err)
+    return  // 一定要 return，否則會繼續往下跑
+  }
+  console.log('成功:', data)
+})</pre>
+
+<div class="callout callout-warn">
+<strong>最常見的面試陷阱：</strong>
+<pre>// ❌ 錯誤做法 — try/catch 接不住 callback 的錯誤
+try {
+  fs.readFile('file.txt', (err, data) =&gt; {
+    if (err) throw err  // 這會在 callback 裡 throw，try/catch 在外面，接不到！
+  })
+} catch (e) {
+  console.log('never reached')
+}</pre>
+</div>
+
+<h3>Promise / async-await 錯誤</h3>
+<pre>// Promise 風格
+fetch('https://api.example.com/user')
+  .then(res =&gt; res.json())
+  .catch(err =&gt; console.error('failed:', err))
+
+// async/await 風格（現代標準）
+async function getUser() {
+  try {
+    const res = await fetch('https://api.example.com/user')
+    const data = await res.json()
+    return data
+  } catch (err) {
+    console.error('failed:', err)
+    throw err  // 重新丟出去，讓呼叫端知道失敗了
+  }
+}</pre>
+
+<hr>
+
+<h2>2. Unhandled Promise Rejection</h2>
+
+<p>被 reject 但沒有 .catch 的 Promise，就是 <strong>unhandled rejection</strong>。Node 15+ 預設會讓 process 崩潰。</p>
+
+<pre>// ❌ 危險 — promise 被 reject 卻沒人處理
+const p = Promise.reject(new Error('boom'))
+// 沒有任何 .catch → unhandled rejection → 可能 crash process
+
+// ✅ 正確
+Promise.reject(new Error('boom')).catch(e =&gt; console.error(e))</pre>
+
+<div class="callout callout-tip">
+<strong>global 防護網：</strong>process 層級攔截所有漏掉的錯誤：
+<pre>process.on('unhandledRejection', (reason) =&gt; {
+  console.error('Unhandled rejection:', reason)
+  // 記錄、警報，然後再決定要不要退出
+})
+
+process.on('uncaughtException', (err) =&gt; {
+  console.error('Uncaught exception:', err)
+  // 注意：process 狀態可能已經壞了
+})</pre>
+</div>
+
+<hr>
+
+<h2>3. 自訂錯誤 + instanceof</h2>
+
+<p>用 <code>instanceof</code> 區分錯誤類型，這是面試的加分點。</p>
+
+<pre>class ApiError extends Error {
+  constructor(public statusCode: number, message: string) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+class ValidationError extends Error {
+  constructor(public fields: string[]) {
+    super('Validation failed')
+    this.name = 'ValidationError'
+  }
+}
+
+function processOrder(order: Order) {
+  if (!order.id) throw new ValidationError(['id'])
+  if (!order.amount) throw new ValidationError(['amount'])
+
+  const result = chargePayment(order)
+  if (!result.success) throw new ApiError(502, 'Payment provider down')
+}
+
+try {
+  processOrder(order)
+} catch (err) {
+  if (err instanceof ValidationError) {
+    console.log('bad request, fields:', err.fields)
+  } else if (err instanceof ApiError) {
+    console.log(`upstream ${err.statusCode}:`, err.message)
+  } else {
+    console.log('unknown error:', err)
+  }
+}</pre>
+
+<hr>
+
+<h2>4. Express：Async Error Handling（必考）</h2>
+
+<p>Express 4 無法自動接住 async 錯誤。你必須自己傳給 next()。</p>
+
+<pre>// ❌ Express 4 — 錯誤會變成 unhandled rejection
+app.get('/user/:id', async (req, res) =&gt; {
+  const user = await db.findUser(req.params.id)  // 如果 throw
+  res.json(user)                                  // Express 接不住！
+})
+
+// ✅ Express 4 — 用 wrapper 或 .catch(next)
+app.get('/user/:id', async (req, res, next) =&gt; {
+  try {
+    const user = await db.findUser(req.params.id)
+    res.json(user)
+  } catch (err) {
+    next(err)  // 手動轉交給 error middleware
+  }
+})
+
+// ✅ Express 5 — 原生支援 async 錯誤，不用 wrapper
+app.get('/user/:id', async (req, res) =&gt; {
+  const user = await db.findUser(req.params.id)
+  res.json(user)
+})</pre>
+
+<h3>Error middleware（最後一道防線）</h3>
+<pre>// 有 4 個參數才被當成 error middleware
+app.use((err, req, res, next) =&gt; {
+  console.error(err)
+  res.status(err.statusCode ?? 500).json({
+    error: err.message || 'Internal server error',
+  })
+})</pre>
+
+<hr>
+
+<h2>5. 面試 script</h2>
+
+<p>當面試官問「Node.js 怎麼處理錯誤」：</p>
+
+<blockquote>
+<p>"Node 有三種錯誤場景。同步錯誤用 try/catch。callback 用 error-first 慣例 — 第一個參數是 error。Promise 用 .catch 或 async/await 的 try/catch。</p>
+<p>"關鍵是不要把 callback 的 throw 放在外層 try/catch 裡 — 那接不到。我定義自訂錯誤類別（ApiError、ValidationError）並用 instanceof 區分。</p>
+<p>"在 Express 4 我確保 async handler 的錯誤傳給 next()，因為它不會自動接住 async 錯誤；Express 5 才原生支援。最後我會在 process 層掛 unhandledRejection 監聽器當作防護網。"</p>
+</blockquote>
+
+<hr>
+
+<h2>6. 練習題</h2>
+
+<div class="quiz-question">
+<p><strong>Puzzle 1:</strong> 為什麼外層 try/catch 接不住 callback 裡 throw 的錯誤？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p>因為 callback 是在 <strong>之後</strong> 才被事件迴圈執行（I/O 完成後），不是同步 throw。那時外層的 try/catch 已經離開 stack 了 — 沒有 stack frame 可以 catch 它。這跟 Lesson 1 的微任務/宏任務排程直接相關。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 2:</strong> 這個 Promise 會發生什麼？</p>
+<pre>async function main() {
+  const data = await fetch('https://api.example.com')
+  console.log(data)
+}
+main()</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p>如果 fetch reject，這是 <strong>unhandled promise rejection</strong> — main() 沒有 .catch，async 函式外層也沒有 try/catch。Node 15+ 預設會讓 process 崩潰。修正：<code>main().catch(err =&gt; console.error(err))</code>。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 3:</strong> Express 4 的 async route handler 拋錯後會發生什麼？怎麼修正？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer"><p>Express 4 不會接住 async 錯誤 — 它變成 unhandled rejection，可能 crash process，client 會一直等到 timeout。修正：包 try/catch 並呼叫 <code>next(err)</code>，或用 asyncHandler wrapper。Express 5 原生解決這個問題。</p></div>
+</div>
+
+<hr>
+
+<h2>Primary Source</h2>
+<ul>
+<li><a href="https://nodejs.org/en/learn/asynchronous-work/error-handling">Node.js Docs: Error handling</a></li>
+</ul>
+
+<hr>
+
+<p style="color: var(--gray); font-size: 0.85em;">清楚嗎？要繼續 Lesson 8（libuv thread pool）嗎？</p>
+
+<script>
+function toggleAnswer(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('show');
+  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+}
+</script>
+
+</body>
+</html>

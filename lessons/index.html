@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Course Index — Node.js &amp; TypeScript Interview Prep</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  .lesson-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin: 1rem 0;
+    background: var(--bg);
+  }
+  .lesson-card h3 { margin-top: 0; }
+  .lesson-card .meta { font-size: 0.85em; color: var(--gray); margin-bottom: 0.5rem; }
+  .status { font-weight: 600; }
+  .status.done { color: var(--green); }
+  .status.done::before { content: "✅ "; }
+  .status.reference { color: var(--gray); }
+  .status.reference::before { content: "📄 "; }
+  .status.next { color: var(--accent); }
+  .status.next::before { content: "⏭️ "; }
+  .lesson-card p:last-child { margin-bottom: 0; }
+  ul { margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+
+<h1>Course Index</h1>
+<p>Node.js &amp; TypeScript — Backend Engineer Interview Prep. 共 7 份文件。</p>
+<p><a href="../reference/glossary.html">Glossary</a></p>
+
+<hr>
+
+<div class="lesson-card">
+  <h3>1. Node.js Event Loop</h3>
+  <div class="meta">Lesson 1 · <a href="0001-nodejs-event-loop.html">開啟</a></div>
+  <p>事件循環 phases、microtask vs macrotask、5 個輸出順序 puzzle、面試 script。</p>
+  <ul>
+    <li>✅ 已授課</li>
+  </ul>
+</div>
+
+<div class="lesson-card">
+  <h3>2. TypeScript Generics &amp; Utility Types（完整版）</h3>
+  <div class="meta">Lesson 2 · <a href="0002-typescript-generics-utility-types.html">開啟</a> · <span class="status reference">參考用</span></div>
+  <p>進階版：generics、9 個 utility types、mapped types、discriminated unions、conditional types、<code>infer</code>。</p>
+  <ul>
+    <li>⚠️ 對使用者來說太難，已被 2b/2c 取代</li>
+  </ul>
+</div>
+
+<div class="lesson-card">
+  <h3>2b. Utility Types 基礎</h3>
+  <div class="meta">Lesson 2b · <a href="0002b-typescript-utility-types-simpler.html">開啟</a></div>
+  <p>Partial、Pick、Omit — 3 個最常用的 utility types，簡單範例。</p>
+  <ul>
+    <li>✅ 已授課</li>
+  </ul>
+</div>
+
+<div class="lesson-card">
+  <h3>2c. Utility Types 進階</h3>
+  <div class="meta">Lesson 2c · <a href="0002c-typescript-more-utility-types.html">開啟</a></div>
+  <p>Record、ReturnType、Awaited — 加上組合使用（Partial&lt;Omit&lt;User, 'id'&gt;&gt;）。</p>
+  <ul>
+    <li>✅ 已授課</li>
+  </ul>
+</div>
+
+<div class="lesson-card">
+  <h3>3. Node.js Streams &amp; Buffers</h3>
+  <div class="meta">Lesson 3 · <a href="0003-nodejs-streams-buffers.html">開啟</a></div>
+  <p>四種 stream types、pipe、backpressure、Buffer 原始二進位資料。</p>
+  <ul>
+    <li>✅ 已授課</li>
+  </ul>
+</div>
+
+<div class="lesson-card">
+  <h3>4. TypeScript Narrowing &amp; Type Guards</h3>
+  <div class="meta">Lesson 4 · <a href="0004-typescript-narrowing-type-guards.html">開啟</a></div>
+  <p>typeof、instanceof、'in' operator、discriminated unions、custom type guards、never exhaustiveness。</p>
+  <ul>
+    <li>✅ 已授課</li>
+  </ul>
+</div>
+
+<div class="lesson-card">
+  <h3>5. Interface vs Type vs Class</h3>
+  <div class="meta">Lesson 5 · <a href="0005-interface-type-class.html">開啟</a></div>
+  <p>三者區別、互相搭配、選擇策略、面試 script。</p>
+  <ul>
+    <li>✅ 已授課</li>
+  </ul>
+</div>
+
+<hr>
+
+<h2>未開課（建議）</h2>
+
+<div class="lesson-card">
+  <h3>6. Discriminated Unions</h3>
+  <div class="meta">Lesson 6 · 尚未建立 · <span class="status next">下一步建議</span></div>
+  <p>用 <code>status</code> / <code>kind</code> 欄位區分 union members，API 狀態建模。Lesson 4 已覆蓋基礎，這課做深入。</p>
+</div>
+
+<div class="lesson-card">
+  <h3>7. Node.js Error Handling</h3>
+  <div class="meta">Lesson 7 · 尚未建立</div>
+  <p>async error propagation、try/catch、error-first callbacks、Express error middleware。</p>
+</div>
+
+<div class="lesson-card">
+  <h3>8. libuv Thread Pool / Worker Threads</h3>
+  <div class="meta">Lesson 8 · 尚未建立</div>
+  <p>Node 如何處理 CPU 密集任務、cluster vs worker_threads、單執行緒模型的限制。</p>
+</div>
+
+<div class="lesson-card">
+  <h3>9. 模擬面試</h3>
+  <div class="meta">Lesson 9 · 互動式 · 尚未建立</div>
+  <p>隨機出題，你口頭回答，我給回饋。</p>
+</div>
+
+<hr>
+
+<p style="color: var(--gray); font-size: 0.85em;">建議順序：1 → 2b → 2c → 3 → 4 → 5 → 6 → 7 → 8，最後 9 模擬面試。</p>
+
+</body>
+</html>
