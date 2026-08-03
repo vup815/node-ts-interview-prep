@@ -235,3 +235,38 @@ type Result&lt;T&gt; =
 
 </body>
 </html>
+<h2>8. 練習題</h2>
+
+<div class="quiz-question">
+<p><strong>題目 1：</strong>你想定義一個 API 回應型別，可能成功（有 data）或失敗（有 error）。用 interface 還是 type？為什麼？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>type</strong> — 因為這是 union：<code>type ApiResult&lt;T&gt; = { ok: true; data: T } | { ok: false; error: string }</code>。interface 不能表達 union。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>題目 2：</strong>你要擴充 Express 的 Request，加上 user 屬性。用 interface 還是 type？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>interface</strong> — 需要 declaration merging：<code>declare module 'express' { interface Request { user?: User } }</code>。type 不能 merge。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>題目 3：</strong>你需要一個 User 型別，但不想重複定義 id、name、email。你的程式已經有一個 User class。怎麼做？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p>直接用 class 當型別：<code>class User { constructor(public id:number, public name:string, public email:string){} }</code>。然後用 utility types 變形：<code>type PublicUser = Omit&lt;User, 'email'&gt;</code>。</p></div>
+</div>
+
+<hr>
+
+<h2>9. 面試追問題</h2>
+
+<div class="quiz-question">
+<p><strong>追問：</strong>class 可以 implements type 嗎？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p>可以，只要 type 是物件形狀：<code>type Shape = { area(): number }; class Circle implements Shape { area() { return Math.PI * 2 } }</code>。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>追問：</strong>為什麼 utility types（Partial、Pick）可以用在 interface 上？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p>因為 interface 和 type 對 utility types 來說是同一回事 — 它們看的都是結構（shape），不是定義方式。interface 定義的物件 shape 和 type 定義的一樣都可以被工具型別變換。</p></div>
+</div>

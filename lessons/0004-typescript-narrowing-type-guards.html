@@ -262,3 +262,87 @@ function toggleAnswer(btn) {
 
 </body>
 </html>
+
+<h2>11. 更多 Discriminated Union 範例</h2>
+
+<h3>Fetch 回應狀態</h3>
+<pre>
+type FetchState&lt;T&gt; =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; error: Error }
+
+function render(state: FetchState&lt;User&gt;) {
+  switch (state.status) {
+    case 'idle': return '尚未開始';
+    case 'loading': return '載入中…';
+    case 'success': return state.data.name;  // ✅ 有 data
+    case 'error': return state.error.message; // ✅ 有 error
+  }
+}</pre>
+
+<h3>WebSocket 訊息</h3>
+<pre>
+type ServerMessage =
+  | { type: 'chat'; sender: string; text: string }
+  | { type: 'join'; username: string }
+  | { type: 'leave'; username: string }
+  | { type: 'system'; code: number }
+
+function handleMessage(msg: ServerMessage) {
+  switch (msg.type) {
+    case 'chat': console.log(`${msg.sender}: ${msg.text}`); break;
+    case 'join': console.log(`${msg.username} 加入了`); break;
+    case 'leave': console.log(`${msg.username} 離開了`); break;
+    case 'system': console.log(`系統代碼 ${msg.code}`); break;
+    default: const _exhaustive: never = msg;
+  }
+}</pre>
+
+<h3>驗證結果（面試常考）</h3>
+<pre>
+type ValidationResult =
+  | { ok: true; value: number }
+  | { ok: false; errors: string[] }
+
+function parsePositiveInt(input: string): ValidationResult {
+  const n = Number(input);
+  if (!Number.isInteger(n) || n &lt;= 0) {
+    return { ok: false, errors: ['必須是正整數'] };
+  }
+  return { ok: true, value: n };
+}
+
+const result = parsePositiveInt('abc');
+if (result.ok) {
+  result.value;  // ✅ number
+} else {
+  result.errors; // ✅ string[]
+}</pre>
+
+<hr>
+
+<h2>12. 面試追問題</h2>
+
+<div class="quiz-question">
+<p><strong>追問：</strong>把以下壞型別改成 discriminated union：</p>
+<pre>interface PaymentResult {
+  success: boolean;
+  transactionId?: string;
+  errorMessage?: string;
+}</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><pre>type PaymentResult =
+  | { success: true; transactionId: string }
+  | { success: false; errorMessage: string }</pre></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>追問：</strong>寫一個 discriminated union 代表檔案上傳的三種狀態。</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><pre>type UploadState =
+  | { status: 'uploading'; progress: number }
+  | { status: 'success'; url: string }
+  | { status: 'failed'; reason: string }</pre></div>
+</div>

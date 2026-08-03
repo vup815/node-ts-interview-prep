@@ -1,52 +1,105 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lesson 9: Mock Interview</title>
+<title>Lesson 9: 模擬面試題庫</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
 
-<p><span class="tag tag-interview">Interview</span></p>
+<p><span class="tag tag-node">Node.js</span> <span class="tag tag-ts">TypeScript</span> <span class="tag tag-interview">面試</span></p>
 
-<h1>Lesson 9: Mock Interview</h1>
-<p><em>用真實面試的方式考你。你口頭回答，我給回饋。</em></p>
+<h1>Lesson 9: 模擬面試題庫</h1>
+<p><em>實際面試中可能被問到的題目。每題都有解答範本。</em></p>
+<p>參考：<a href="../reference/mock-interview-review.html">模擬面試複習</a></p>
 
 <hr>
 
-<h2>怎麼進行</h2>
+<h2>Event Loop</h2>
+
+<div class="quiz-question">
+<p><strong>Q1:</strong> 解釋 Node.js 的 event loop。有哪些 phases？microtask 和 macrotask 的執行順序？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案範本</button>
+<div class="quiz-answer"><p>Event loop 由 libuv 實作，循環六個 phases：timers、pending callbacks、idle/prepare、poll、check、close callbacks。每個 phase 之間清空 microtask 佇列（nextTick 優先、Promise 次之）。所以 Promise.then 比 setTimeout(0) 先跑。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Q2:</strong> setTimeout(cb, 0) 和 process.nextTick 差在哪？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案範本</button>
+<div class="quiz-answer"><p>setTimeout 是 macrotask（timers phase），nextTick 是 microtask（phase 之間執行）。nextTick 一定先跑。但遞迴 nextTick 會餓死 event loop。現代寫法用 queueMicrotask 或 setImmediate。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Q3:</strong> 在 I/O callback 裡面，setImmediate 和 setTimeout(0) 哪個先跑？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案範本</button>
+<div class="quiz-answer"><p>setImmediate。因為在 I/O callback 裡時 event loop 在 poll phase，之後走到 check（setImmediate），再經過 timers phase 才到 setTimeout。外部不確定，內部 always setImmediate。</p></div>
+</div>
+
+<h2>Utility Types</h2>
+
+<div class="quiz-question">
+<p><strong>Q4:</strong> Partial、Pick、Omit 分別做什麼？舉使用情境。</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案範本</button>
+<div class="quiz-answer"><p>Partial 讓全部欄位 optional（PATCH body）。Pick 選取子集（API 投影）。Omit 移除欄位（隱藏機密）。組合：Partial&lt;Omit&lt;User, 'id'&gt;&gt; = id 不能改，其他可選。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Q5:</strong> Record、ReturnType、Awaited 的用途？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案範本</button>
+<div class="quiz-answer"><p>Record 建立有固定 key 的字典（設定、權限）。ReturnType 取出函式回傳型別（不要重複定義）。Awaited 解開 Promise。組合：Awaited&lt;ReturnType&lt;typeof fn&gt;&gt; 從 async 函式推導真實型別。</p></div>
+</div>
+
+<h2>Interface / Type / Class</h2>
+
+<div class="quiz-question">
+<p><strong>Q6:</strong> Interface 和 type 的差別？什麼時候用哪個？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案範本</button>
+<div class="quiz-answer"><p>Interface 可以 declaration merging（擴充第三方型別時用）。Type 支援 union、tuple、mapped types（預設用 type）。資料形狀用 type，擴充用 interface，行為用 class。</p></div>
+</div>
+
+<h2>Streams & Error Handling</h2>
+
+<div class="quiz-question">
+<p><strong>Q7:</strong> 為什麼用 streams 比 readFile 好？解釋 backpressure。</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案範本</button>
+<div class="quiz-answer"><p>記憶體效率：2GB 檔案用 readFile 佔 2GB RAM，stream 佔 ~64KB pipe 自動處理 backpressure — 寫入端跟不上時暫停讀取，等 drain 事件恢復。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Q8:</strong> Express 4 的 async route handler 拋錯會怎樣？怎麼修正？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案範本</button>
+<div class="quiz-answer"><p>Express 4 不會接 async 錯誤 — 變成 unhandled rejection，可能 crash process。修正：包 try/catch 並呼叫 next(err)。Express 5 原生支援。</p></div>
+</div>
+
+<h2>Thread Pool</h2>
+
+<div class="quiz-question">
+<p><strong>Q9:</strong> Node 是單執行緒嗎？怎麼處理並行？CPU 密集工作會發生什麼？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案範本</button>
+<div class="quiz-answer"><p>JS 跑在主執行緒，但 libuv 提供 4 個 thread pool 處理 fs/crypto/DNS。網路 I/O（HTTP/TCP）不走 thread pool，是 OS 層非同步。CPU 密集工作會佔住主執行緒、凍結 event loop。解法：worker_threads、cluster。</p></div>
+</div>
+
+<hr>
+
+<h2>如何使用</h2>
 <ol>
-<li>我會一次問一題（Node.js 或 TypeScript）</li>
-<li>你用文字回答，就像在面試中口頭回答一樣</li>
-<li>我給回饋：哪裡答得好、哪裡漏了、面試官會追問什麼</li>
-<li>每題結束後，我會給這題的「完整回答範本」</li>
+<li>先遮住答案，自己口頭回答（30-60 秒）</li>
+<li>點開答案範本比對</li>
+<li>參考 <a href="../reference/mock-interview-review.html">Mock Interview Review</a> 看完整追問和深入討論</li>
 </ol>
 
-<h2>題目涵蓋範圍</h2>
-<ul>
-<li>Event loop（Lesson 1）</li>
-<li>Utility types（Lesson 2b/2c）</li>
-<li>Streams & Buffers（Lesson 3）</li>
-<li>Narrowing（Lesson 4）</li>
-<li>Interface/Type/Class（Lesson 5）</li>
-<li>Discriminated unions（Lesson 6）</li>
-<li>Error handling（Lesson 7）</li>
-<li>Thread pool（Lesson 8）</li>
-</ul>
-
 <hr>
 
-<h2>提示</h2>
-<ul>
-<li>回答前先講「核心概念」，再補細節 — 面試官喜歡先聽到重點</li>
-<li>每題都用 30–60 秒回答，不要寫論文</li>
-<li>不知道就說不知道，但嘗試用你會的推演</li>
-</ul>
+<p style="color: var(--gray); font-size: 0.85em;">也可以叫 agent 直接考你 — 說「開始模擬面試」。</p>
 
-<hr>
-
-<p style="color: var(--gray); font-size: 0.85em;">準備好了就回到對話框，跟 agent 說「開始模擬面試」。</p>
+<script>
+function toggleAnswer(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('show');
+  btn.textContent = answer.classList.contains('show') ? '隱藏答案' : '看答案';
+}
+</script>
 
 </body>
 </html>
