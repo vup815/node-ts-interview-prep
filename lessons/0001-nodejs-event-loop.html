@@ -171,17 +171,21 @@ console.log('d');</pre>
 
 <hr>
 
-<h2>4. 面試完整回答</h2>
+ <h2>4. 面試完整回答</h2>
 
-<p>當面試官問「解釋 event loop」，用這份腳本一口氣說完：</p>
+<p>當面試官問「解釋 event loop」，用這份腳本：</p>
 
 <blockquote>
-<p>"Event loop 是 libuv 實作的機制，讓 Node.js 能在單執行緒上處理大量並行連線。它循環經過六個 phase：timers、pending callbacks、idle/prepare、poll、check、close callbacks，每個 phase 處理特定類別的 callback。</p>
-<p>"關鍵在 microtask。在每個 macrotask callback 執行完之後、進到下一個 callback 之前，Node 會先清空 process.nextTick 佇列，再清空 Promise 佇列。這是 Node 11+ 的行為，與瀏覽器一致。舊版 Node 是在整個 phase 結束後才清空。</p>
-<p>"這就是為什麼 Promise.then 會比 setTimeout(0) 先執行 — Promise 是 microtask，setTimeout 是 macrotask 要等到 timers phase。一個常見的陷阱是在 I/O callback 裡面比較 setImmediate 和 setTimeout：因為 event loop 正在 poll phase，接下來會先進 check phase（setImmediate），然後才回到 timers（setTimeout），所以 setImmediate 永遠先跑。另外要注意 recursive nextTick 會讓 microtask 清不空、event loop 走不到 poll phase、所有 I/O 都被餓死。"</p>
+<p>"Event Loop 是 Node.js 底層由 libuv 實作的核心機制。它讓 Node.js 能夠在單一執行緒上，高效處理大量並行的 I/O 與非同步操作 — 非同步 I/O 不會被卡住，但 CPU 密集任務仍然會阻塞主執行緒。</p>
+<p>整個 Event Loop 會不斷地循環經過六個 phase，每個 phase 都有自己的 callback 佇列。第一個是 timers，負責執行已經到期的 setTimeout 和 setInterval。接下來是 pending callbacks，處理一些系統層級的延遲 I/O callback。然後是 idle 和 prepare，這兩個主要是 libuv 內部使用。</p>
+<p>再來就是最核心的 poll phase，它做兩件事：抓取新的 I/O 事件並執行對應 callback，以及在必要時決定要不要阻塞等待。接著進入 check phase，專門執行 setImmediate 的 callback。最後是 close callbacks，處理像 socket 關閉這類 close 事件。</p>
+<p>每執行完一個 callback，Node 就會立刻清空一次 microtask 佇列。順序上，process.nextTick 佇列優先於 Promise 的 microtask 佇列，而且會反覆清空，直到兩個佇列都空了，才會繼續往下一個 callback 或下一個 phase 前進。</p>
+<p>正因為這個機制，Promise.then 一定會比 setTimeout(fn, 0) 更早執行。因為前者屬於 microtask，會在當前 callback 結束後立刻處理；後者必須等到下一輪的 timers phase 才有機會被執行。</p>
+<p>一般情況下，setTimeout(0) 和 setImmediate 誰先跑是不確定的，取決於當下 Event Loop 的狀態與系統負載。但如果你是在一個 I/O callback 裡面比較這兩者，結果就固定了。因為當下已經在 poll phase，下一個 phase 就是 check，所以 setImmediate 永遠會先於 setTimeout(0) 執行。</p>
+<p>process.nextTick 的優先級非常高。如果你在 callback 裡不斷遞迴呼叫 process.nextTick，microtask 佇列就永遠清不完，Event Loop 永遠走不到下一個 phase，結果就是所有的 I/O、timer、setImmediate 全部被餓死。"</p>
 </blockquote>
 
-<p><strong>為什麼這段話有效：</strong>提到 libuv（展現深度）、說出 phase 名稱（展現結構）、解釋 microtask vs macrotask（展現精確度）、提到 Node 11+ 的版本差異（展現持續關注更新）、舉例說明（展現實戰理解）。</p>
+<p><strong>為什麼這段話有效：</strong>提到 libuv（展現深度）、完整說出六個 phase 名稱與用途（展現結構）、解釋 microtask 在每個 callback 後的清空機制（展現精確度）、區分「不確定」與「確定」的 setImmediate 順序（展現經驗）、說明 nextTick 遞迴的餓死風險（展現實戰理解）。</p>
 
 <hr>
 
