@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 11: satisfies &amp; as const</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<p><span class="tag tag-ts">TypeScript</span> <span class="tag tag-interview">Interview</span></p>
+
+<h1>Lesson 11: satisfies &amp; as const</h1>
+<p><em>Modern TS features appearing in 2026 interviews — type-checking without widening.</em></p>
+
+<hr>
+
+<h2>Why This Matters</h2>
+<p>Interviewers ask about satisfies (TS 4.9+) because it reveals whether you understand the tension between type-checking and type-widening. as const tests literal types.</p>
+
+<hr>
+
+<h2>1. The Problem: Type Assertion Widens</h2>
+
+<pre>
+const config = { port: 3000, debug: true } as Record&lt;string, unknown&gt;;
+config.port; // type: unknown ❌ — lost the number type
+</pre>
+
+<p>as tells TypeScript "trust me" — but it widens the type and discards literal values.</p>
+
+<h2>2. satisfies: Check Without Widen</h2>
+
+<pre>
+const config = { port: 3000, debug: true } satisfies Record&lt;string, unknown&gt;;
+config.port; // type: number ✅ — preserved!
+</pre>
+
+<p>satisfies checks conformity without changing the inferred type.</p>
+
+<h2>3. Key Difference</h2>
+
+<ul>
+<li>as Type = "make this Type" (widens, discards detail)</li>
+<li>satisfies Type = "check this matches, keep narrowest type"</li>
+</ul>
+
+<h2>4. as const — Literal Types</h2>
+
+<pre>
+// Without as const — widened
+const roles = ['admin', 'user', 'guest'];  // type: string[]
+
+// With as const — literal
+const roles = ['admin', 'user', 'guest'] as const;
+// type: readonly ['admin', 'user', 'guest']
+
+// Extract union from array
+type Role = typeof roles[number]; // 'admin' | 'user' | 'guest'
+</pre>
+
+<h2>5. Combining Both</h2>
+
+<pre>
+const config = {
+  apiUrl: 'https://api.example.com',
+  port: 3000,
+  roles: ['admin', 'user'] as const,
+} satisfies Record&lt;string, unknown&gt;;
+
+// config.port: number (not unknown)
+// config.roles: readonly ['admin', 'user']
+</pre>
+
+<h2>6. Interview Script</h2>
+
+<blockquote>
+"satisfies (TS 4.9+) checks that a value matches a type without widening it. I use it for config objects and event maps — anywhere I want type safety but need to preserve narrow types.
+
+"as const gives me literal types for arrays and objects. Combined with satisfies, I can validate against a constraint while keeping the most specific types for autocomplete and exhaustive checking."
+</blockquote>
+
+<h2>7. Puzzles</h2>
+
+<div class="quiz-question">
+<p><strong>Puzzle 1:</strong> What's the type difference?</p>
+<pre>const a = { x: 1 } as Record&lt;string, number&gt;;
+const b = { x: 1 } satisfies Record&lt;string, number&gt;;</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer">a.x is number (widened). b.x is 1 (literal). Both pass the type check, but satisfies preserves the original type.</div>
+</div>
+
+<div class="quiz-question">
+<p><strong>Puzzle 2:</strong> What type is Fruit?</p>
+<pre>const fruits = ['apple', 'banana'] as const;
+type Fruit = typeof fruits[number];</pre>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
+<div class="quiz-answer">'apple' | 'banana' — without as const it would be string.</div>
+</div>
+
+<hr>
+
+<h2>Primary Sources</h2>
+<ul>
+<li><a href="https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html#the-satisfies-operator">TS 4.9: satisfies</a></li>
+<li><a href="https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-types">TS Handbook: Literal Types</a></li>
+</ul>
+
+<hr>
+
+<p style="color: var(--gray); font-size: 0.85em;">Questions? Tell the agent.</p>
+
+<script>
+function toggleAnswer(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('show');
+  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+}
+</script>
+
+</body>
+</html>

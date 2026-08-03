@@ -1,0 +1,128 @@
+/* ── Coding Challenge Widget ── */
+.challenge {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  overflow: hidden;
+}
+
+.challenge-header {
+  background: var(--code-bg);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-sans);
+  font-size: 0.85em;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.challenge-prompt {
+  padding: 0.75rem 1rem;
+  font-size: 0.9em;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.challenge-prompt code {
+  font-size: 0.9em;
+}
+
+.challenge-editor {
+  width: 100%;
+  min-height: 120px;
+  padding: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  line-height: 1.5;
+  border: none;
+  resize: vertical;
+  background: #1e293b;
+  color: #e2e8f0;
+  tab-size: 2;
+}
+
+.challenge-editor:focus {
+  outline: none;
+}
+
+.challenge-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--code-bg);
+  border-top: 1px solid var(--border);
+}
+
+.challenge-btn {
+  font-family: var(--font-sans);
+  font-size: 0.8em;
+  font-weight: 600;
+  padding: 0.4rem 1rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.challenge-btn:hover {
+  background: var(--accent-light);
+}
+
+.challenge-btn-run {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.challenge-btn-run:hover {
+  background: var(--accent-dark);
+}
+
+.challenge-btn-solution {
+  background: var(--green);
+  color: white;
+  border-color: var(--green);
+}
+
+.challenge-output {
+  padding: 0.75rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  background: #0f172a;
+  color: #a5f3fc;
+  min-height: 40px;
+  display: none;
+}
+
+.challenge-output.show {
+  display: block;
+}
+
+.challenge-solution {
+  display: none;
+  padding: 1rem;
+  background: var(--green-bg);
+  border-top: 2px solid var(--green);
+}
+
+.challenge-solution.show {
+  display: block;
+}
+
+.challenge-solution pre {
+  margin: 0.5rem 0 0 0;
+}
+
+@media (prefers-color-scheme: light) {
+  .challenge-editor {
+    background: #1e293b;
+    color: #e2e8f0;
+  }
+  .challenge-output {
+    background: #0f172a;
+    color: #a5f3fc;
+  }
+}

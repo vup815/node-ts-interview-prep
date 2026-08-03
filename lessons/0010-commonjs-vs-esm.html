@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lesson 10: CommonJS vs ESM</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<p><span class="tag tag-node">Node.js</span> <span class="tag tag-interview">Interview</span></p>
+
+<h1>Lesson 10: CommonJS vs ESM</h1>
+<p><em>Node.js 的兩個 module system — 面試必考。</em></p>
+
+<hr>
+
+<h2>Why This Matters</h2>
+<p>Interviewers love "What's the difference between require and import?" It tests whether you understand synchronous vs asynchronous loading and the ongoing ecosystem migration.</p>
+
+<hr>
+
+<h2>1. The Two Systems</h2>
+
+<table>
+<tr><th></th><th>CommonJS</th><th>ES Modules</th></tr>
+<tr><td>Syntax</td><td>require / module.exports</td><td>import / export</td></tr>
+<tr><td>Loading</td><td>Synchronous</td><td>Asynchronous</td></tr>
+<tr><td>Default</td><td>.js (no type:module)</td><td>.mjs or type:module</td></tr>
+<tr><td>Tree-shaking</td><td>Not possible</td><td>Supported</td></tr>
+<tr><td>Top-level await</td><td>Not supported</td><td>Supported</td></tr>
+</table>
+
+<h2>2. Syntax</h2>
+
+<pre>
+// CJS
+const fs = require('fs');
+module.exports = { myFunc };
+
+// ESM
+import fs from 'fs';
+export const myFunc = () => {};
+</pre>
+
+<h2>3. Sync vs Async</h2>
+
+<pre>
+// CJS: blocks until loaded
+const lodash = require('lodash');
+console.log('ready');  // after lodash loaded
+
+// ESM: hoisted
+import lodash from 'lodash';
+console.log('ready');  // after all modules parsed
+</pre>
+
+<h2>4. Interview Script</h2>
+
+<blockquote>
+"New projects should use ESM — it's the standard, supports tree-shaking, and top-level await. CommonJS is still widespread in existing codebases. The fundamental difference: require is synchronous and can be conditional; import is static and hoisted."
+</blockquote>
+
+<h2>Primary Sources</h2>
+<ul>
+<li><a href="https://nodejs.org/api/esm.html">Node.js Docs: ECMAScript Modules</a></li>
+<li><a href="https://nodejs.org/api/modules.html">Node.js Docs: CommonJS Modules</a></li>
+</ul>
+
+</body>
+</html>
