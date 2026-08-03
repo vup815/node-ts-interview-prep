@@ -1,87 +1,96 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Glossary — Node.js &amp; TypeScript Interview Prep</title>
+<title>詞彙表 — Node.js & TypeScript 面試準備</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
 
-<h1>Glossary</h1>
-<p>Canonical terms for this workspace. All lessons adhere to these definitions.</p>
+<h1>詞彙表</h1>
+<p>本課程使用的標準詞彙。所有課程都遵守這些定義。</p>
 
 <h2>Node.js Runtime</h2>
 
-<p><strong>Event loop</strong>:
-The mechanism by which Node.js processes asynchronous callbacks on a single thread. It cycles through phases (timers → pending → poll → check → close), draining microtask queues between each phase.</p>
+<p><strong>Event loop</strong>：
+Node.js 在單執行緒上處理非同步 callback 的機制。它循環經過多個 phase（timers → pending → poll → check → close），每個 phase 之間清空 microtask 佇列。</p>
 
-<p><strong>Phase</strong>:
-A stage of the event loop that processes a specific category of callbacks. The six phases are <em>timers</em>, <em>pending callbacks</em>, <em>idle/prepare</em> (internal), <em>poll</em>, <em>check</em>, and <em>close callbacks</em>.</p>
+<p><strong>Phase</strong>：
+Event loop 的一個階段，處理特定類別的 callback。六個 phase 分別是 timers、pending callbacks、idle/prepare（內部）、poll、check、close callbacks。</p>
 
-<p><strong>libuv</strong>:
-The C library that implements the event loop and the thread pool. Node delegates I/O, timers, and some system calls to libuv.</p>
+<p><strong>libuv</strong>：
+實作 event loop 和執行緒池的 C 函式庫。Node 把 I/O、計時器、部分系統呼叫委派給 libuv。</p>
 
-<p><strong>Microtask</strong>:
-A high-priority callback that runs <em>between</em> event-loop phases, before the next macrotask. Includes <code>process.nextTick</code> (highest priority) and <code>Promise.then</code>/<code>queueMicrotask</code>.</p>
+<p><strong>Microtask</strong>：
+高優先級的 callback，在 event loop phase <em>之間</em>執行，下一個 macrotask 之前。包含 <code>process.nextTick</code>（最高優先級）和 <code>Promise.then</code>/<code>queueMicrotask</code>。</p>
 
-<p><strong>Macrotask</strong>:
-A callback queued by <code>setTimeout</code>, <code>setInterval</code>, <code>setImmediate</code>, or I/O. Macrotasks run during their respective event-loop phase, one per iteration.</p>
+<p><strong>Macrotask</strong>：
+由 <code>setTimeout</code>、<code>setInterval</code>、<code>setImmediate</code> 或 I/O 排入佇列的 callback。每個 phase 一次處理一個 macrotask。</p>
 
-<p><strong>process.nextTick</strong>:
-A microtask that runs <em>before</em> the next event-loop phase — even before promise microtasks. Overuse can starve I/O.</p>
+<p><strong>process.nextTick</strong>：
+在下一個 event loop phase <em>之前</em>執行的 microtask — 甚至比 Promise microtask 還早。過度使用會餓死 I/O。</p>
 
-<p><strong>setImmediate</strong>:
-A macrotask that fires during the <em>check</em> phase (after poll). Use it to defer work until after I/O callbacks have run.</p>
+<p><strong>setImmediate</strong>：
+在 <strong>check</strong> phase（poll 之後）執行的 macrotask。用來把工作延後到 I/O callbacks 之後。</p>
 
-<p><strong>Thread pool</strong>:
-Four (by default) worker threads managed by libuv, used for CPU-heavy or blocking operations (fs, crypto, DNS). Not to be confused with the single JS thread.</p>
+<p><strong>執行緒池（Thread pool）</strong>：
+libuv 管理的執行緒（預設 4 個），用來處理 CPU 密集或 blocking 的操作（fs、crypto、DNS）。不要和 JS 主執行緒搞混。</p>
 
-<p><strong>Stream</strong>:
-An abstract interface for reading/writing data piece-by-piece. Four types: <em>Readable</em>, <em>Writable</em>, <em>Duplex</em>, <em>Transform</em>.</p>
+<p><strong>Stream</strong>：
+以 chunk 為單位讀寫資料的抽象介面。四種型別：Readable、Writable、Duplex、Transform。</p>
 
-<p><strong>Backpressure</strong>:
-When a Writable stream cannot keep up with a Readable stream. Node handles it via <code>highWaterMark</code> and <code>drain</code> events.</p>
+<p><strong>Backpressure</strong>：
+當 Writable stream 跟不上 Readable stream 時發生的狀況。Node 透過 <code>highWaterMark</code> 和 <code>drain</code> 事件處理。</p>
 
-<p><strong>Buffer</strong>:
-A fixed-size chunk of raw binary data allocated outside the V8 heap. Used for streams, file I/O, and network data.</p>
+<p><strong>Buffer</strong>：
+配置在 V8 heap 之外的一塊固定大小原始二進位資料。用於 streams、檔案 I/O、網路資料。</p>
 
-<p><strong>EventEmitter</strong>:
-The pattern Node uses for pub/sub. Many core modules (<code>stream</code>, <code>http</code>, <code>fs</code>) extend it.</p>
+<p><strong>EventEmitter</strong>：
+Node 用來實作 pub/sub 的模式。許多核心模組（stream、http、fs）都繼承它。</p>
+
+<p><strong>CommonJS (CJS)</strong>：
+Node.js 原始的模組系統。使用 <code>require()</code> 和 <code>module.exports</code>，同步載入。</p>
+
+<p><strong>ES Module (ESM)</strong>：
+JavaScript 標準的模組系統。使用 <code>import</code> 和 <code>export</code>，非同步載入，可靜態分析。</p>
 
 <h2>TypeScript</h2>
 
-<p><strong>Generic</strong>:
-A type parameter that makes a function, class, or type work with any type while preserving type safety. Written as <code>&lt;T&gt;</code>.</p>
+<p><strong>泛型（Generic）</strong>：
+型別參數，讓函式、class、型別能在保留型別安全的前提下適用於多種型別。寫為 <code>&lt;T&gt;</code>。</p>
 
-<p><strong>Constraint</strong>:
-A restriction on a generic type parameter via <code>extends</code>. Example: <code>&lt;T extends { length: number }&gt;</code>.</p>
+<p><strong>約束（Constraint）</strong>：
+透過 <code>extends</code> 對泛型參數的限制。範例：<code>&lt;T extends { length: number }&gt;</code>。</p>
 
-<p><strong>Utility type</strong>:
-A built-in generic type that transforms another type. Common ones: <code>Partial&lt;T&gt;</code>, <code>Required&lt;T&gt;</code>, <code>Pick&lt;T, K&gt;</code>, <code>Omit&lt;T, K&gt;</code>, <code>Record&lt;K, V&gt;</code>, <code>ReturnType&lt;T&gt;</code>, <code>Parameters&lt;T&gt;</code>, <code>Awaited&lt;T&gt;</code>.</p>
+<p><strong>Utility type</strong>：
+內建的泛型型別，用來變換另一個型別。常見的：<code>Partial&lt;T&gt;</code>、<code>Required&lt;T&gt;</code>、<code>Pick&lt;T, K&gt;</code>、<code>Omit&lt;T, K&gt;</code>、<code>Record&lt;K, V&gt;</code>、<code>ReturnType&lt;T&gt;</code>、<code>Parameters&lt;T&gt;</code>、<code>Awaited&lt;T&gt;</code>。</p>
 
-<p><strong>Narrowing</strong>:
-The process of refining a union type to a more specific type using type guards (<code>typeof</code>, <code>instanceof</code>, <code>in</code>, discriminated unions).</p>
+<p><strong>收窄（Narrowing）</strong>：
+使用 type guard（typeof、instanceof、in、discriminated unions）把 union type 收窄到更具體型別的過程。</p>
 
-<p><strong>Discriminated union</strong>:
-A union of object types where each member has a literal property (the "discriminant") that TypeScript can use to narrow. Example: <code>{ kind: 'success'; data: T } | { kind: 'error'; message: string }</code>.</p>
+<p><strong>Discriminated union</strong>：
+一組物件型別的 union，每個成員有一個 literal 屬性（discriminant）。TypeScript 用這個屬性來收窄。範例：<code>{ kind: 'success'; data: T } | { kind: 'error'; message: string }</code>。</p>
 
-<p><strong>Type guard</strong>:
-An expression that performs runtime checks to guarantee the type in a scope. Includes user-defined type predicates (<code>is T</code>).</p>
+<p><strong>Type guard</strong>：
+執行時期檢查的運算式，用來保證某個 scope 裡的型別。包含使用者自訂的型別謂詞（<code>is T</code>）。</p>
 
-<p><strong>Mapped type</strong>:
-A type that iterates over keys of another type, transforming its properties. Example: <code>{ [K in keyof T]: T[K] | null }</code>.</p>
+<p><strong>Mapped type</strong>：
+迭代另一個型別的 key 來變換其屬性的型別。範例：<code>{ [K in keyof T]: T[K] | null }</code>。</p>
 
-<p><strong>Conditional type</strong>:
-A type that selects between two branches based on a condition. Example: <code>T extends string ? 'yes' : 'no'</code>.</p>
+<p><strong>Conditional type</strong>：
+根據條件選擇兩個分支之一的型別。範例：<code>T extends string ? 'yes' : 'no'</code>。</p>
 
-<p><strong>structural typing</strong>:
-TypeScript's type-compatibility system: two types are compatible if their <em>shapes</em> match, not their names. Also called "duck typing."</p>
+<p><strong>結構型別（Structural typing）</strong>：
+TypeScript 的型別相容性系統：兩個型別如果<em>形狀</em>相符就是相容的，不管名稱。也稱為 duck typing。</p>
 
-<p><strong><code>satisfies</code></strong>:
-A TS 4.9+ operator that checks a value's type against a constraint <em>without</em> widening. Example: <code>const config = { port: 3000 } satisfies Record&lt;string, unknown&gt;</code> preserves the literal type of <code>port</code>.</p>
+<p><strong><code>satisfies</code></strong>：
+TS 4.9+ 的運算子，檢查值的型別是否符合約束，但<em>不</em>拓寬型別。範例：<code>const config = { port: 3000 } satisfies Record&lt;string, unknown&gt;</code> — port 的型別保持 <code>number</code>，不會變成 <code>unknown</code>。</p>
 
-<p style="margin-top: 2rem; font-size: 0.85em; color: var(--gray);">See <a href="https://www.typescriptlang.org/docs/handbook/utility-types.html">TS Handbook: Utility Types</a> · <a href="https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick">Node.js: Event Loop docs</a></p>
+<p><strong><code>as const</code></strong>：
+把值變成深度 readonly，並把所有型別收窄到 literal（而不是被拓寬）。範例：<code>const roles = ['admin', 'user'] as const</code> — 型別是 <code>readonly ['admin', 'user']</code>，不是 <code>string[]</code>。</p>
+
+<p style="margin-top: 2rem; font-size: 0.85em; color: var(--gray);">參考：<a href="https://www.typescriptlang.org/docs/handbook/utility-types.html">TS 手冊：Utility Types</a> · <a href="https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick">Node.js：Event Loop 文件</a></p>
 
 </body>
 </html>

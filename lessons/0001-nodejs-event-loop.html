@@ -1,107 +1,106 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lesson 1: Node.js Event Loop — Deep Dive</title>
+<title>Lesson 1: Node.js Event Loop — 深入解析</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
 
-<p><span class="tag tag-node">Node.js</span> <span class="tag tag-interview">Interview</span></p>
+<p><span class="tag tag-node">Node.js</span> <span class="tag tag-interview">面試</span></p>
 
-<h1>Lesson 1: The Event Loop</h1>
-<p><em>The single highest-signal topic in Node.js interviews. If you control the event-loop conversation, you control the round.</em></p>
-<p>Mission: <a href="../MISSION.md">Pass a backend engineer interview</a></p>
-
-<hr>
-
-<h2>Why This Matters</h2>
-<p>Every Node.js interview includes at least one output-order puzzle or "explain how async works" question. Interviewers report that the event loop is the #1 separator between surface-level and deep understanding. This lesson gives you both the mental model and the verbal script.</p>
+<h1>Lesson 1: Event Loop</h1>
+<p><em>Node.js 面試中最重要的題目。能講清楚 event loop，就能掌握整個面試的節奏。</em></p>
 
 <hr>
 
-<h2>1. The Mental Model</h2>
+<h2>為什麼這題重要</h2>
+<p>每場 Node.js 面試至少會有一題 event loop — 可能是輸出順序題，也可能是「解釋非同步怎麼運作」。面試官回報，event loop 是區分表面理解和深層理解的第一道關卡。這堂課給你完整的心理模型和口頭回答腳本。</p>
 
-<h3>Single thread + libuv</h3>
-<p>JavaScript runs on <strong>one thread</strong>. It cannot do two things at once. When you call <code>fs.readFile</code> or <code>setTimeout</code>, Node hands the work to <strong>libuv</strong> — a C library that manages I/O, timers, and a thread pool. When the work finishes, libuv queues a callback and the event loop picks it up when the JS call stack is empty.</p>
+<hr>
+
+<h2>1. 心理模型</h2>
+
+<h3>單執行緒 + libuv</h3>
+<p>JavaScript 跑在<strong>一個執行緒</strong>上。它無法同時做兩件事。當你呼叫 <code>fs.readFile</code> 或 <code>setTimeout</code>，Node 把工作交給 <strong>libuv</strong> — 一個 C 語言寫的函式庫，負責管理 I/O、計時器和一個執行緒池。工作完成後，libuv 把 callback 排入佇列，等 JS 呼叫栈空了之後，event loop 再來處理。</p>
 
 <div class="callout callout-tip">
-<strong>Key insight:</strong> "Single-threaded" means your <em>JavaScript</em> runs on one thread. libuv's thread pool (default: 4 threads) handles blocking operations. The event loop is the bridge between them.
+<strong>關鍵觀念：</strong>「單執行緒」指的是你的 JavaScript 程式碼跑在一個執行緒上。libuv 的執行緒池（預設 4 個執行緒）負責處理阻塞操作（檔案讀寫、加密）。Event loop 是連接兩者的橋樑。
 </div>
 
-<h3>The Six Phases</h3>
-<p>The event loop cycles through six phases. The three you'll be asked about in interviews:</p>
+<h3>六個 Phases</h3>
+<p>Event loop 循環六個 phase。面試中你會需要講清楚的 phase：</p>
 
 <table>
-<tr><th>Phase</th><th>What runs</th><th>Key API</th></tr>
-<tr><td><strong>timers</strong></td><td>Callbacks from expired <code>setTimeout</code> / <code>setInterval</code></td><td><code>setTimeout(fn, 0)</code></td></tr>
-<tr><td><strong>pending callbacks</strong></td><td>Deferred system callbacks (e.g., TCP errors)</td><td><em>internal</em></td></tr>
-<tr><td><strong>idle / prepare</strong></td><td>Internal libuv bookkeeping</td><td><em>internal</em></td></tr>
-<tr><td><strong>poll</strong></td><td>I/O callbacks (file reads, network, etc.)</td><td><code>fs.readFile</code>, <code>http</code></td></tr>
-<tr><td><strong>check</strong></td><td><code>setImmediate</code> callbacks</td><td><code>setImmediate(fn)</code></td></tr>
-<tr><td><strong>close callbacks</strong></td><td>Cleanup events (e.g., <code>socket.on('close')</code>)</td><td><em>internal</em></td></tr>
+<tr><th>Phase</th><th>執行的東西</th><th>相關 API</th></tr>
+<tr><td><strong>timers</strong></td><td>到期的 setTimeout / setInterval callback</td><td><code>setTimeout(fn, 0)</code></td></tr>
+<tr><td><strong>pending callbacks</strong></td><td>延遲的系統 callback（如 TCP 錯誤）</td><td><em>內部使用</em></td></tr>
+<tr><td><strong>idle / prepare</strong></td><td>libuv 內部記帳</td><td><em>內部使用</em></td></tr>
+<tr><td><strong>poll</strong></td><td>I/O callback（檔案讀取、網路）</td><td><code>fs.readFile</code>、<code>http</code></td></tr>
+<tr><td><strong>check</strong></td><td>setImmediate callback</td><td><code>setImmediate(fn)</code></td></tr>
+<tr><td><strong>close callbacks</strong></td><td>清理事件（如 socket.on('close')）</td><td><em>內部使用</em></td></tr>
 </table>
 
-<h3>Microtasks — The Trap Door</h3>
-<p>Between <em>every</em> phase, the event loop checks the microtask queues. They have <strong>higher priority</strong> than any macrotask.</p>
+<h3>Microtask — 陷阱所在</h3>
+<p>每個 phase <strong>之間</strong>，event loop 會檢查 microtask 佇列。它們的優先級高於任何 macrotask。</p>
 
 <table>
-<tr><th>Queue</th><th>Priority</th><th>API</th></tr>
-<tr><td><code>nextTick</code> queue</td><td>Highest</td><td><code>process.nextTick(fn)</code></td></tr>
-<tr><td>Promise microtask queue</td><td>Second</td><td><code>Promise.resolve().then(fn)</code>, <code>queueMicrotask(fn)</code>, <code>await</code></td></tr>
+<tr><th>佇列</th><th>優先級</th><th>API</th></tr>
+<tr><td><code>nextTick</code> 佇列</td><td>最高</td><td><code>process.nextTick(fn)</code></td></tr>
+<tr><td>Promise microtask 佇列</td><td>第二</td><td><code>Promise.resolve().then(fn)</code>、<code>queueMicrotask(fn)</code>、<code>await</code></td></tr>
 </table>
 
-<h3>Full Execution Order</h3>
+<h3>完整執行順序</h3>
 <pre>
-1. Run current synchronous code (call stack)
-2. Drain entire nextTick queue
-3. Drain entire promise microtask queue
-4. Run one macrotask from current phase (e.g., one timer callback)
-5. Drain entire nextTick queue again
-6. Drain entire promise microtask queue again
-7. Move to next phase, repeat from step 4
+1. 執行當前的同步程式碼（call stack）
+2. 清空整個 nextTick 佇列
+3. 清空整個 Promise microtask 佇列
+4. 執行一個目前 phase 的 macrotask（例如一個 timer callback）
+5. 再次清空整個 nextTick 佇列
+6. 再次清空整個 Promise microtask 佇列
+7. 移到下一個 phase，重複步驟 4
 </pre>
 
 <div class="callout callout-warn">
-<strong>Starving the loop:</strong> Recursive <code>process.nextTick</code> <em>before</em> the event loop advances prevents the poll phase from running. This is why Node warns about it. Use <code>setImmediate</code> instead to yield to I/O.
+<strong>餓死 Event Loop：</strong>遞迴呼叫 <code>process.nextTick</code> 會讓 nextTick 佇列永遠清不空，event loop 永遠走不到 poll phase，所有 I/O 都無法處理。這就是為什麼 Node 官方警告不要濫用 nextTick。
 </div>
 
 <hr>
 
-<h2>2. The One Diagram to Memorize</h2>
+<h2>2. 要記住的圖</h2>
 
 <pre>
    ┌───────────────────────────┐
 ┌─&gt;│           timers          │  ← setTimeout / setInterval
 │  └─────────────┬─────────────┘
 │  ┌─────────────┴─────────────┐
-│  │     pending callbacks     │  ← internal
+│  │     pending callbacks     │  ← 內部
 │  └─────────────┬─────────────┘
 │  ┌─────────────┴─────────────┐
-│  │       idle, prepare       │  ← internal
+│  │       idle, prepare       │  ← 內部
 │  └─────────────┬─────────────┘      ┌──────────────┐
 │  ┌─────────────┴─────────────┐      │   microtasks  │
 │  │           poll            │←─────┤  (nextTick +  │
 │  │  (I/O callbacks)          │      │   promises)   │
-│  └─────────────┬─────────────┘      │  drain between│
-│  ┌─────────────┴─────────────┐      │  EVERY phase  │
+│  └─────────────┬─────────────┘      │  每個 phase  │
+│  ┌─────────────┴─────────────┐      │   之間清空    │
 │  │          check            │      └──────────────┘
 │  │  (setImmediate)           │
 │  └─────────────┬─────────────┘
 │  ┌─────────────┴─────────────┐
 │  │      close callbacks      │
 │  └───────────────────────────┘
-└─────────────────────────────── loop continues
+└─────────────────────────────── loop 繼續
 </pre>
 
 <hr>
 
-<h2>3. Output-Order Puzzles</h2>
-<p>Try each puzzle. Predict the output <em>out loud</em> before clicking to reveal.</p>
+<h2>3. 輸出順序題</h2>
+<p>先預測輸出結果，再點開看答案。</p>
 
 <div class="quiz-question">
-<p><strong>Puzzle 1:</strong> Basic ordering</p>
+<p><strong>題目 1：</strong>基本順序</p>
 <pre>
 console.log('1');
 
@@ -110,38 +109,38 @@ setTimeout(() =&gt; console.log('2'), 0);
 Promise.resolve().then(() =&gt; console.log('3'));
 
 console.log('4');</pre>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Output:</strong> <code>1, 4, 3, 2</code></p>
-<p><strong>Why:</strong> <code>1</code> and <code>4</code> run synchronously first. Promise <code>.then</code> is a microtask — runs after the call stack is empty, before the next macrotask. <code>setTimeout(0)</code> is a macrotask — it runs in the next timers phase.</p></div>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>輸出：</strong><code>1, 4, 3, 2</code></p>
+<p><strong>為什麼：</strong><code>1</code> 和 <code>4</code> 先同步執行。Promise 的 <code>.then</code> 是 microtask — 在 call stack 清空後、下一個 macrotask 之前執行。<code>setTimeout(0)</code> 是 macrotask — 在下一個 timers phase 執行。</p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Puzzle 2:</strong> nextTick vs Promise</p>
+<p><strong>題目 2：</strong>nextTick vs Promise</p>
 <pre>
 Promise.resolve().then(() =&gt; console.log('promise'));
 process.nextTick(() =&gt; console.log('nextTick'));
 console.log('sync');</pre>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Output:</strong> <code>sync, nextTick, promise</code></p>
-<p><strong>Why:</strong> <code>sync</code> runs first. The nextTick queue drains <em>before</em> the promise queue — nextTick has higher priority among microtasks.</p></div>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>輸出：</strong><code>sync, nextTick, promise</code></p>
+<p><strong>為什麼：</strong><code>sync</code> 先跑。nextTick 佇列在 Promise 佇列<strong>之前</strong>清空 — nextTick 在 microtask 中有最高優先級。</p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Puzzle 3:</strong> Inside an I/O callback — setImmediate vs setTimeout</p>
+<p><strong>題目 3：</strong>在 I/O callback 裡 — setImmediate vs setTimeout</p>
 <pre>
 const fs = require('fs');
 fs.readFile(__filename, () =&gt; {
   setTimeout(() =&gt; console.log('timeout'), 0);
   setImmediate(() =&gt; console.log('immediate'));
 });</pre>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Output:</strong> <code>immediate, timeout</code></p>
-<p><strong>Why:</strong> Inside an I/O callback, the event loop is in the <strong>poll</strong> phase. After poll, it moves to <strong>check</strong> (setImmediate), then <strong>close callbacks</strong>, then back to <strong>timers</strong> (setTimeout). So <code>setImmediate</code> always wins inside I/O.</p>
-<p><em>Outside</em> I/O, the order of setTimeout vs setImmediate is <strong>non-deterministic</strong> — it depends on how long the timer takes to enter the timers phase.</p></div>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>輸出：</strong><code>immediate, timeout</code></p>
+<p><strong>為什麼：</strong>在 I/O callback 裡面時，event loop 正在 <strong>poll</strong> phase。poll 之後會到 <strong>check</strong>（setImmediate），然後 close callbacks，最後才回到 <strong>timers</strong>（setTimeout）。所以在 I/O 內部，setImmediate 永遠比 setTimeout 先跑。</p>
+<p>在 I/O 外部，setTimeout 和 setImmediate 的順序是<strong>不確定的</strong> — 取決於計時器何時到期。</p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Puzzle 4:</strong> Nested microtasks</p>
+<p><strong>題目 4：</strong>巢狀 Microtask</p>
 <pre>
 process.nextTick(() =&gt; {
   console.log('nextTick 1');
@@ -154,13 +153,13 @@ Promise.resolve().then(() =&gt; {
 });
 
 console.log('sync');</pre>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Output:</strong> <code>sync, nextTick 1, nextTick 2, promise 1, nextTick 3</code></p>
-<p><strong>Why:</strong> The entire nextTick queue drains <em>before</em> the promise queue starts. Even though <code>nextTick 2</code> is enqueued inside a nextTick callback, it drains in the same microtask drain. After the nextTick queue is empty, the promise queue starts. But <code>nextTick 3</code> is enqueued inside a promise callback — it runs in the <em>next</em> microtask drain (after the promise queue empties, before the next phase).</p></div>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>輸出：</strong><code>sync, nextTick 1, nextTick 2, promise 1, nextTick 3</code></p>
+<p><strong>為什麼：</strong>整個 nextTick 佇列在 Promise 佇列<strong>之前</strong>清空。即使 <code>nextTick 2</code> 是在 nextTick callback 裡面被加入的，它仍然在同一次清空中執行。nextTick 佇列清空後，Promise 佇列才開始。但 <code>nextTick 3</code> 是在 Promise callback 裡被加入的 — 它會在下一次 microtask 清空時執行（Promise 佇列清完後、下一個 phase 之前）。</p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Puzzle 5:</strong> Async/await — the trap</p>
+<p><strong>題目 5：</strong>Async/await — 經典陷阱</p>
 <pre>
 async function foo() {
   console.log('a');
@@ -174,75 +173,75 @@ async function bar() {
 
 foo();
 console.log('d');</pre>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Output:</strong> <code>a, b, d, c</code></p>
-<p><strong>Why:</strong> <code>foo()</code> runs synchronously until it hits <code>await</code>. <code>console.log('a')</code> runs, then <code>bar()</code> is called. <code>bar()</code> runs synchronously (<code>console.log('b')</code>) and returns a resolved promise. The <code>await</code> <em>suspends</em> <code>foo</code> and returns execution to the caller. <code>console.log('d')</code> runs. The continuation of <code>foo</code> (the part after await) is queued as a microtask. It runs after the call stack empties.</p>
-<p><strong>Interview trap:</strong> Many candidates think <code>c</code> runs before <code>d</code>. They miss that <code>await</code> yields to the caller.</p></div>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>輸出：</strong><code>a, b, d, c</code></p>
+<p><strong>為什麼：</strong><code>foo()</code> 同步執行到 <code>await</code>。<code>console.log('a')</code> 先跑，然後 <code>bar()</code> 被呼叫。<code>bar()</code> 同步執行（印 <code>b</code>），回傳一個 resolved promise。<code>await</code> <strong>暫停 foo</strong>，把控制權交還給呼叫者（全域範圍）。<code>console.log('d')</code> 執行。foo 的續段（await 之後的部分）被排成 microtask，在 call stack 清空後執行。</p>
+<p><strong>面試陷阱：</strong>很多人以為 <code>c</code> 在 <code>d</code> 之前。他們忽略了 <code>await</code> 會把控制權交還給呼叫者。</p></div>
 </div>
 
 <hr>
 
-<h2>4. Interview Answer Script</h2>
+<h2>4. 面試完整回答</h2>
 
-<p>When the interviewer asks "Explain the event loop," here's your script:</p>
+<p>當面試官問「解釋 event loop」，用這份腳本：</p>
 
 <blockquote>
-<p>"The event loop is what lets Node.js handle thousands of concurrent connections on a single thread. libuv — the C library underneath — actually runs the loop, cycling through phases: timers, pending callbacks, poll, check, and close. Each phase has a FIFO queue of callbacks.</p>
-<p>"Between each phase, Node drains two microtask queues: first <code>process.nextTick</code>, then promise microtasks. This is why <code>nextTick</code> runs before <code>.then</code> callbacks, and why a deeply recursive <code>nextTick</code> can starve I/O.</p>
-<p>"The key mental model: synchronously queued microtasks run before any macrotask. So <code>Promise.resolve().then(...)</code> runs before <code>setTimeout(...)</code>, even with a zero delay. And inside an I/O callback, <code>setImmediate</code> fires before the next <code>setTimeout</code> because check phase comes before the next timers phase."</p>
+<p>"Event loop 讓 Node.js 可以在一個執行緒上處理數千個並行連線。底層的 C 函式庫 libuv 負責執行這個循環，它依序經過六個 phase：timers、pending callbacks、poll、check、close callbacks。每個 phase 有自己的 FIFO 佇列。</p>
+<p>"每個 phase 之間，Node 會清空兩個 microtask 佇列：首先是 <code>process.nextTick</code>，然後是 Promise microtask。這就是為什麼 nextTick 比 .then callback 先執行，也為什麼深度遞迴的 nextTick 可能會餓死 I/O。</p>
+<p>"關鍵的心理模型：同步加入的 microtask 在任何 macrotask 之前執行。所以 <code>Promise.resolve().then(...)</code> 比 <code>setTimeout(...)</code> 先跑，即使 delay 是 0。而在 I/O callback 裡面，<code>setImmediate</code> 比下一個 <code>setTimeout</code> 先觸發，因為 check phase 在 timers phase 之前。"</p>
 </blockquote>
 
-<p><strong>Why this script works:</strong> It mentions libuv (shows depth), names the phases (shows structure), explains microtask vs macrotask (shows precision), and gives an example (shows practical understanding). This is the arc of a strong answer.</p>
+<p><strong>為什麼這段話有效：</strong>提到 libuv（展現深度）、說出 phase 名稱（展現結構）、解釋 microtask vs macrotask（展現精確度）、舉例說明（展現實戰理解）。</p>
 
 <hr>
 
-<h2>5. Common Follow-Up Questions</h2>
+<h2>5. 常見追問題</h2>
 
 <div class="quiz-question">
-<p><strong>Q:</strong> "What runs on the libuv thread pool?"</p>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>A:</strong> File system operations (<code>fs</code>), DNS (<code>dns.lookup</code>), and some crypto (<code>crypto.pbkdf2</code>, <code>crypto.randomBytes</code>). Network I/O (HTTP, TCP) uses the OS kernel — no thread pool.</p></div>
+<p><strong>追問：</strong>「什麼東西跑在 libuv 的執行緒池上？」</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>答：</strong>檔案系統操作（fs）、DNS（dns.lookup）、部分加密操作（crypto.pbkdf2、crypto.randomBytes）。網路 I/O（HTTP、TCP）使用作業系統核心 — 不經過執行緒池。</p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Q:</strong> "What happens when the poll phase has no timers and no I/O?"</p>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>A:</strong> The poll phase checks for <code>setImmediate</code> callbacks. If any exist, it immediately moves to the check phase. If none, it blocks waiting for I/O events. If a timer is expiring soon, it skips the wait and moves to the timers phase.</p></div>
+<p><strong>追問：</strong>「poll phase 如果沒有 timer 也沒有 I/O 會發生什麼事？」</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>答：</strong>Poll phase 會檢查是否有 setImmediate callback。如果有，立刻移到 check phase。如果沒有，它會 blocking 等待 I/O 事件。如果有一個 timer 即將到期，它會跳過等待直接移到 timers phase。</p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Q:</strong> "Does the event loop run forever?"</p>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>A:</strong> No. The event loop stops when there are no more handles (timers, I/O sockets) or requests to process. The loop calls <code>uv_run</code> — when libuv returns, Node exits.</p></div>
+<p><strong>追問：</strong>「Event loop 會永遠跑下去嗎？」</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>答：</strong>不會。當沒有 handle（timer、I/O socket）或 request 需要處理時，event loop 就會停止。Loop 在 libuv 裡是透過 <code>uv_run</code> 執行的 — 當 libuv 回傳時，Node 就結束了。</p></div>
 </div>
 
 <hr>
 
-<h2>6. Next Steps</h2>
-<p>After this lesson, you should be able to:</p>
+<h2>6. 下一步</h2>
+<p>學完這課後，你應該能做到：</p>
 <ul>
-<li>Draw the event-loop phases from memory</li>
-<li>Explain microtask vs macrotask ordering</li>
-<li>Solve any output-order puzzle in an interview</li>
-<li>Answer "explain the event loop" with the script above</li>
+<li>從記憶畫出 event loop 的 phase 順序</li>
+<li>解釋 microtask vs macrotask 的執行順序</li>
+<li>解決面試中的任何輸出順序題</li>
+<li>用上面的腳本回答「解釋 event loop」</li>
 </ul>
-<p>Open a Node REPL and experiment with the puzzles above. Change the ordering. Add <code>setImmediate</code>. Add more <code>nextTick</code> calls. Predict the output before running.</p>
+<p>打開 Node REPL 實驗上面的題目。改變順序、加入 setImmediate、加入更多 nextTick。先預測輸出再執行驗證。</p>
 
 <hr>
 
-<h2>Primary Source</h2>
-<p><a href="https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick">Node.js Official Documentation: Event Loop, Timers, and process.nextTick()</a> — The one source to read. It's authoritative, short, and the exact mental model interviewers expect.</p>
-<p>Also watch: <a href="https://www.youtube.com/watch?v=cCOL7MC4Pl0">Jake Archibald: In The Loop (JSConf.Asia 2018)</a> — the clearest explanation of event loop + microtasks. Browser-focused but the mental model transfers directly.</p>
+<h2>參考資料</h2>
+<p><a href="https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick">Node.js 官方文件：Event Loop、Timers、process.nextTick()</a> — 必讀。權威、簡短，面試官期待的就是這個心理模型。</p>
+<p>也可以看：<a href="https://www.youtube.com/watch?v=cCOL7MC4Pl0">Jake Archibald: In The Loop（JSConf.Asia 2018）</a> — 最清楚的 event loop + microtask 視覺化說明。</p>
 
 <hr>
 
-<p style="color: var(--gray); font-size: 0.85em;">Stuck? Something unclear? Ask your teacher (the agent) — that's what they're here for.</p>
+<p style="color: var(--gray); font-size: 0.85em;">卡住了？不清楚的地方問你的老師（agent）— 這就是他們的功能。</p>
 
 <script>
 function toggleAnswer(btn) {
   var answer = btn.nextElementSibling;
   answer.classList.toggle('show');
-  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+  btn.textContent = answer.classList.contains('show') ? '隱藏答案' : '看答案';
 }
 </script>
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,64 +8,67 @@
 </head>
 <body>
 
-<p><span class="tag tag-ts">TypeScript</span> <span class="tag tag-interview">Interview</span></p>
+<p><span class="tag tag-ts">TypeScript</span> <span class="tag tag-interview">面試</span></p>
 
 <h1>Lesson 4: Narrowing & Type Guards</h1>
-<p><em>How to turn a vague type into a precise one — one of the most practical skills in TypeScript interviews.</em></p>
-<p>Prerequisites: <a href="0002b-typescript-utility-types-simpler.html">Lesson 2b (utility types)</a></p>
+<p><em>如何把模糊的型別變成精確的型別 — TypeScript 面試最實用的技巧之一。</em></p>
+<p>先修：<a href="0002b-typescript-utility-types-simpler.html">Lesson 2b（utility types）</a></p>
 
 <hr>
 
-<h2>Why This Matters</h2>
-<p>In real code — and in interviews — you constantly receive data of a <strong>broad type</strong> and need to work with it safely. Narrowing is how you refine that broad type into something useful. Without it, everything is <code>any</code> or <code>unknown</code> and you lose type safety.</p>
+<h2>為什麼重要</h2>
+<p>真實的程式碼 — 和面試中 — 你不斷收到<strong>寬型別</strong>的資料，然後需要安全地操作它。Narrowing 就是你精煉寬型別的方法。沒有它，什麼都是 <code>any</code> 或 <code>unknown</code>，失去所有型別安全。</p>
 
 <hr>
 
-<h2>1. What is Narrowing?</h2>
+<h2>1. 什麼是 Narrowing？</h2>
 
-<p><strong>Narrowing</strong> is TypeScript's process of reducing a <strong>union type</strong> to a <strong>specific member</strong> of that union, based on a runtime check.</p>
+<p><strong>Narrowing</strong> 是 TypeScript 把一個 <strong>union type</strong> 收窄到某個<strong>特定成員</strong>的過程，依據執行時期的檢查。</p>
 
-<pre>// Broad type
+<pre>
+// 寬型別
 function process(value: string | number) {
-  // Here, `value` is string | number — too vague to do anything useful
+  // 這裡 value 是 string | number — 什麼都不能做
 
   if (typeof value === 'string') {
-    // Inside this block, `value` is narrowed to `string`
-    console.log(value.toUpperCase());  // ✅ OK
+    // 這個 block 裡，value 被收窄成 string
+    console.log(value.toUpperCase());  // ✅ 可以
   } else {
-    // Inside this block, `value` is narrowed to `number`
-    console.log(value.toFixed(2));     // ✅ OK
+    // 這個 block 裡，value 被收窄成 number
+    console.log(value.toFixed(2));     // ✅ 可以
   }
 }</pre>
 
-<p>The <code>typeof</code> check acts as a <strong>type guard</strong> — it tells TypeScript to trust that inside the <code>if</code> block, the type is <code>string</code>.</p>
+<p><code>typeof</code> 檢查就是一個 <strong>type guard</strong> — 它告訴 TypeScript 在 if block 裡面可以信任這個型別。</p>
 
 <hr>
 
-<h2>2. typeof — The Most Common Guard</h2>
+<h2>2. typeof — 最常見的 guard</h2>
 
-<pre>function format(input: string | number | boolean): string {
+<pre>
+function format(input: string | number | boolean): string {
   if (typeof input === 'string') {
     return input.toUpperCase();
   }
   if (typeof input === 'number') {
     return input.toFixed(2);
   }
-  // At this point, TypeScript knows input is boolean
+  // 到這裡 TypeScript 知道 input 是 boolean
   return input ? 'yes' : 'no';
 }</pre>
 
-<h3>What typeof can check</h3>
+<h3>typeof 可以檢查什麼</h3>
 <ul>
-<li><code>'string'</code>, <code>'number'</code>, <code>'boolean'</code>, <code>'symbol'</code>, <code>'bigint'</code>, <code>'undefined'</code>, <code>'object'</code>, <code>'function'</code></li>
-<li>⚠️ <code>typeof null === 'object'</code> — this is a JS bug. Use a separate null check.</li>
+<li><code>'string'</code>、<code>'number'</code>、<code>'boolean'</code>、<code>'symbol'</code>、<code>'bigint'</code>、<code>'undefined'</code>、<code>'object'</code>、<code>'function'</code></li>
+<li>⚠️ <code>typeof null === 'object'</code> — 這是 JS 的 bug。需要另外檢查 null。</li>
 </ul>
 
 <hr>
 
-<h2>3. instanceof — For Classes</h2>
+<h2>3. instanceof — 給 class 用的</h2>
 
-<pre>class ApiError extends Error {
+<pre>
+class ApiError extends Error {
   constructor(public statusCode: number, message: string) {
     super(message);
   }
@@ -73,43 +76,43 @@ function process(value: string | number) {
 
 function handleError(err: Error | string) {
   if (err instanceof ApiError) {
-    // narrowed to ApiError — has .statusCode
+    // 收窄成 ApiError — 有 .statusCode
     console.log(`API ${err.statusCode}: ${err.message}`);
   } else if (err instanceof Error) {
-    // narrowed to Error
-    console.log(`General error: ${err.message}`);
+    // 收窄成 Error
+    console.log(`一般錯誤：${err.message}`);
   } else {
-    // narrowed to string
-    console.log(`String message: ${err}`);
+    // 收窄成 string
+    console.log(`字串訊息：${err}`);
   }
 }</pre>
 
 <hr>
 
-<h2>4. The 'in' Operator — Checking Properties</h2>
+<h2>4. 'in' 運算子 — 檢查屬性是否存在</h2>
 
-<pre>interface Car { wheels: number; drive(): void; }
+<pre>
+interface Car { wheels: number; drive(): void; }
 interface Boat { length: number; sail(): void; }
 
 function operate(vehicle: Car | Boat) {
   if ('drive' in vehicle) {
-    // narrowed to Car
+    // 收窄成 Car
     vehicle.drive();
   } else {
-    // narrowed to Boat
+    // 收窄成 Boat
     vehicle.sail();
   }
 }</pre>
 
-<p><code>'property' in obj</code> checks if a property exists at runtime. TypeScript uses this to narrow the type to whichever member has that property.</p>
-
 <hr>
 
-<h2>5. Discriminated Unions — The Cleanest Pattern</h2>
+<h2>5. Discriminated Unions — 最乾淨的模式</h2>
 
-<p>Instead of checking which <em>properties</em> exist, check a common literal <strong>discriminant</strong> property:</p>
+<p>與其檢查哪些<em>屬性</em>存在，不如檢查一個共同的 literal <strong>discriminant</strong>：</p>
 
-<pre>type ApiResult&lt;T&gt; =
+<pre>
+type ApiResult&lt;T&gt; =
   | { status: 'success'; data: T }
   | { status: 'error'; message: string }
   | { status: 'loading' };
@@ -117,31 +120,25 @@ function operate(vehicle: Car | Boat) {
 function handleResult(result: ApiResult&lt;User&gt;) {
   switch (result.status) {
     case 'success':
-      // narrowed: result.data is User ✅
+      // 收窄：result.data 是 User ✅
       console.log(result.data.name);
       break;
     case 'error':
-      // narrowed: result.message is string ✅
+      // 收窄：result.message 是 string ✅
       console.error(result.message);
       break;
     case 'loading':
-      // narrowed: no data, no message — just loading
-      console.log('Loading...');
+      console.log('載入中...');
       break;
   }
 }</pre>
 
-<div class="callout callout-tip">
-<strong>Interview script:</strong> "I use discriminated unions with a common <code>status</code> or <code>kind</code> field. The compiler narrows inside each <code>case</code>, so accessing <code>.data</code> on <code>'loading'</code> is a compile error."
-</div>
+<h2>6. 自訂 Type Guard</h2>
 
-<hr>
+<p>當 typeof 或 instanceof 不夠用時，你可以用 <code>value is Type</code> 語法寫自訂 guard：</p>
 
-<h2>6. User-Defined Type Guards</h2>
-
-<p>Sometimes <code>typeof</code> or <code>instanceof</code> isn't enough. You can write a <strong>custom type guard</strong> using the <code>value is Type</code> syntax:</p>
-
-<pre>interface User { name: string; email: string; }
+<pre>
+interface User { name: string; email: string; }
 interface Admin extends User { role: 'admin'; }
 
 function isAdmin(user: User): user is Admin {
@@ -150,26 +147,26 @@ function isAdmin(user: User): user is Admin {
 
 function processUser(user: User) {
   if (isAdmin(user)) {
-    // narrowed to Admin — has .role
+    // 收窄成 Admin — 有 .role
     console.log(`Admin: ${user.name}, role: ${user.role}`);
   } else {
-    // narrowed to User (not Admin)
+    // 收窄成 User（不是 Admin）
     console.log(`User: ${user.name}`);
   }
 }</pre>
 
-<p>The return type <code>user is Admin</code> tells TypeScript: "if this function returns true, treat the argument as <code>Admin</code>."</p>
+<p>回傳型別 <code>user is Admin</code> 告訴 TypeScript：「如果這個函式回傳 true，把參數當作 Admin 來處理。」</p>
 
 <hr>
 
-<h2>7. Exhaustiveness Check with never</h2>
+<h2>7. Exhaustiveness Check（never）</h2>
 
-<p>When you add a new variant to a union, you want the compiler to warn you about unhandled cases:</p>
+<p>當你對 union 加入新成員，你希望編譯器提醒你沒處理到的 case：</p>
 
-<pre>type Shape =
+<pre>
+type Shape =
   | { kind: 'circle'; radius: number }
   | { kind: 'square'; side: number }
-  | { kind: 'triangle'; base: number; height: number };  // new!
 
 function area(s: Shape): number {
   switch (s.kind) {
@@ -178,7 +175,7 @@ function area(s: Shape): number {
     case 'square':
       return s.side ** 2;
     default:
-      // Error if any case is missing:
+      // 如果以後加 triangle，這裡會報錯：
       // Type 'triangle' is not assignable to type 'never'
       const _exhaustive: never = s;
       return _exhaustive;
@@ -186,90 +183,80 @@ function area(s: Shape): number {
 }</pre>
 
 <div class="callout callout-warn">
-<strong>Interview trap:</strong> Without the <code>never</code> default, adding <code>triangle</code> would compile silently. The function would return <code>undefined</code> at runtime. The <code>never</code> check catches this at compile time.
+<strong>面試陷阱：</strong>沒有 <code>never</code> default，加入 triangle 後編譯器不會報錯。函式在執行時期回傳 undefined。never check 在編譯期抓到這個問題。
 </div>
 
 <hr>
 
-<h2>8. Summary</h2>
+<h2>8. 總整理</h2>
 
 <table>
-<tr><th>Guard</th><th>Syntax</th><th>When to use</th></tr>
-<tr><td><code>typeof</code></td><td><code>typeof x === 'string'</code></td><td>Primitive types</td></tr>
-<tr><td><code>instanceof</code></td><td><code>x instanceof Error</code></td><td>Class instances</td></tr>
-<tr><td><code>in</code></td><td><code>'prop' in obj</code></td><td>Checking property existence</td></tr>
-<tr><td>Discriminated union</td><td><code>switch (x.kind)</code></td><td>Object unions with a literal tag</td></tr>
-<tr><td>Custom guard</td><td><code>fn(x): x is T</code></td><td>Complex runtime logic</td></tr>
+<tr><th>Guard</th><th>語法</th><th>何時用</th></tr>
+<tr><td><code>typeof</code></td><td><code>typeof x === 'string'</code></td><td>基本型別</td></tr>
+<tr><td><code>instanceof</code></td><td><code>x instanceof Error</code></td><td>class 實例</td></tr>
+<tr><td><code>in</code></td><td><code>'prop' in obj</code></td><td>檢查屬性是否存在</td></tr>
+<tr><td>Discriminated union</td><td><code>switch (x.kind)</code></td><td>有 literal tag 的物件 union</td></tr>
+<tr><td>自訂 guard</td><td><code>fn(x): x is T</code></td><td>複雜的執行時期邏輯</td></tr>
 <tr><td><code>never</code></td><td><code>const x: never = val</code></td><td>Exhaustiveness check</td></tr>
 </table>
 
 <hr>
 
-<h2>9. Puzzles</h2>
+<h2>9. 練習題</h2>
 
 <div class="quiz-question">
-<p><strong>Puzzle 1:</strong> What is the narrowed type of <code>x</code> inside each branch?</p>
+<p><strong>題目 1：</strong>以下各 branch 的收窄型別是什麼？</p>
 <pre>function test(x: string | number | null) {
   if (typeof x === 'string') { /* ??? */ }
   else if (typeof x === 'number') { /* ??? */ }
   else { /* ??? */ }
 }</pre>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer">
-<p><code>string</code>, <code>number</code>, <code>null</code> — the else branch gets whatever remains after the guards.</p>
-</div>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><code>string</code>、<code>number</code>、<code>null</code> — else branch 拿到剩下的型別。</p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Puzzle 2:</strong> What is the problem with this code?</p>
+<p><strong>題目 2：</strong>這段程式碼有什麼問題？</p>
 <pre>function getLength(x: string | string[]) {
   if (typeof x === 'object') {
     return x.length;
   }
   return x.length;
 }</pre>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer">
-<p><code>typeof null === 'object'</code> — so if <code>x</code> is somehow <code>null</code>, the first branch would crash. Use <code>Array.isArray(x)</code> instead when checking for arrays.</p>
-</div>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><code>typeof null === 'object'</code> — 如果 x 是 null，第一個 branch 會當掉。應該用 <code>Array.isArray(x)</code> 來檢查陣列。</p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Puzzle 3:</strong> Without adding the <code>never</code> check in the default branch, what would happen if someone adds <code>{ kind: 'triangle'; base: number; height: number }</code> to the <code>Shape</code> union?</p>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer">
-<p>The function would compile fine, but at runtime <code>area({ kind: 'triangle', base: 3, height: 4 })</code> would return <code>undefined</code> — no error, no warning. The <code>never</code> check forces you to handle every variant.</p>
-</div>
+<p><strong>題目 3：</strong>如果 Shape union 加了 <code>{ kind: 'triangle'; base: number; height: number }</code>，但 area 函式沒有 never check，會發生什麼事？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p>編譯器不會報錯，但執行時期 <code>area({ kind: 'triangle', base: 3, height: 4 })</code> 會回傳 <code>undefined</code> — 沒有任何錯誤或警告。never check 強迫你處理每個 variant。</p></div>
 </div>
 
 <hr>
 
-<h2>10. Interview Answer Script</h2>
-
-<p>When the interviewer says "How does TypeScript narrowing work?"</p>
+<h2>10. 面試完整回答</h2>
 
 <blockquote>
-<p>"Narrowing is TypeScript's ability to refine a union type based on runtime checks. The most common guards are <code>typeof</code> for primitives, <code>instanceof</code> for classes, and <code>'property' in obj</code> for checking property existence.</p>
-<p>"For object types with multiple variants, I use <strong>discriminated unions</strong> — each member has a literal <code>kind</code> or <code>status</code> property, and a switch statement narrows per case. I always add a <code>default: never</code> branch as an exhaustiveness check so the compiler tells me when I've missed a variant.</p>
-<p>"For complex logic, I write custom type guards with the <code>value is Type</code> return syntax — they let me encapsulate the runtime check while keeping the narrowed type downstream."</p>
+<p>"Narrowing 是 TypeScript 根據執行時期檢查收窄 union type 的能力。最常用的 guard 是 <code>typeof</code>（基本型別）、<code>instanceof</code>（class）、<code>'property' in obj</code>（檢查屬性是否存在）。</p>
+<p>"對於有多種變體的物件型別，我用 <strong>discriminated unions</strong> — 每個成員有一個 literal <code>kind</code> 或 <code>status</code> 屬性，用 switch 收窄。我還會加 <code>default: never</code> 做 exhaustiveness check，讓編譯器在漏掉 case 時報錯。</p>
+<p>"複雜邏輯的話，我寫自訂 type guard，用 <code>value is Type</code> 回傳型別語法 — 把執行時期檢查封裝起來，下游能拿到收窄後的型別。"</p>
 </blockquote>
 
 <hr>
 
-<h2>Primary Sources</h2>
-<ul>
-<li><a href="https://www.typescriptlang.org/docs/handbook/2/narrowing.html">TS Handbook: Narrowing</a> — the official guide</li>
-</ul>
+<h2>參考資料</h2>
+<p><a href="https://www.typescriptlang.org/docs/handbook/2/narrowing.html">TS 手冊：Narrowing</a></p>
 
 <hr>
 
-<p style="color: var(--gray); font-size: 0.85em;">Clear? Any part still fuzzy?</p>
+<p style="color: var(--gray); font-size: 0.85em;">清楚嗎？還有模糊的地方嗎？</p>
 
 <script>
 function toggleAnswer(btn) {
   var answer = btn.nextElementSibling;
   answer.classList.toggle('show');
-  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+  btn.textContent = answer.classList.contains('show') ? '隱藏答案' : '看答案';
 }
 </script>
 

@@ -1,76 +1,81 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lesson 2b: Utility Types — Gentle Intro</title>
+<title>Lesson 2b: Utility Types 基礎 — Partial, Pick, Omit</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
 
-<p><span class="tag tag-ts">TypeScript</span> <span class="tag tag-interview">Interview</span></p>
+<p><span class="tag tag-ts">TypeScript</span> <span class="tag tag-interview">面試</span></p>
 
-<h1>Lesson 2b: Utility Types (Simpler)</h1>
-<p><em>Only 3 utility types. Gentle examples. No mapped types. No conditional types.</em></p>
-<p>Mission: <a href="../MISSION.md">Pass a backend engineer interview</a></p>
+<h1>Lesson 2b: Utility Types 基礎</h1>
+<p><em>只教 3 個最常用的 utility types。簡單、實用、面試必考。</em></p>
 
 <hr>
 
-<h2>What is a Utility Type?</h2>
-<p>A utility type is a <strong>built-in helper</strong> that takes an existing type and produces a <strong>new type</strong> from it. You don't write the transformation yourself — TypeScript gives it to you.</p>
+<h2>什麼是 Utility Type？</h2>
+<p>Utility type 是一個<strong>內建的型別助手</strong> — 它吃進一個型別，產出一個<strong>新型別</strong>。你不需要自己寫轉換邏輯，TypeScript 已經準備好了。</p>
 
-<pre>// You have this:
+<pre>
+// 你有一個型別：
 interface User {
   id: number;
   name: string;
   email: string;
 }
 
-// Utility types transform it:
-type PartialUser = Partial&lt;User&gt;;  // all fields become optional
-type JustName   = Pick&lt;User, 'name'&gt;;  // only 'name'
-type NoEmail    = Omit&lt;User, 'email'&gt;;  // everything except 'email'</pre>
+// Utility types 幫你變形：
+type PartialUser = Partial&lt;User&gt;;  // 全部欄位變 optional
+type JustName   = Pick&lt;User, 'name'&gt;;  // 只留 name
+type NoEmail    = Omit&lt;User, 'email'&gt;;  // 去掉 email
+</pre>
 
-<p>Think of them like array methods (<code>.map()</code>, <code>.filter()</code>) — but for <strong>types</strong> instead of values.</p>
+<p>你可以把它想成陣列的 <code>.map()</code> / <code>.filter()</code>，但這是給<strong>型別</strong>用的。</p>
 
 <hr>
 
-<h2>1. Partial&lt;T&gt; — "all fields optional"</h2>
+<h2>1. Partial&lt;T&gt; — 「全部欄位可選」</h2>
 
-<pre>interface User {
+<pre>
+interface User {
   id: number;
   name: string;
   email: string;
 }
 
 type PartialUser = Partial&lt;User&gt;;
-// Result: { id?: number; name?: string; email?: string; }</pre>
+// 結果：{ id?: number; name?: string; email?: string; }
+</pre>
 
-<h3>When to use it in an interview</h3>
-<p><strong>PATCH endpoint</strong> — the client only sends the fields it wants to update:</p>
+<h3>面試中使用情境</h3>
+<p><strong>PATCH endpoint</strong> — 使用者只傳想更新的欄位：</p>
 
-<pre>async function updateUser(
+<pre>
+async function updateUser(
   id: number,
   changes: Partial&lt;User&gt;
 ): Promise&lt;User&gt; {
-  // Only `changes` fields will be merged
+  // 只有 changes 裡的欄位會被合併
   return db.users.update(id, changes);
 }
 
-// Usage: only pass what changed
-updateUser(1, { name: "New Name" });         // OK
-updateUser(1, { id: 2 });                    // OK (Partial allows this)
-updateUser(1, { id: 2, name: "A", email: "b@c.com" }); // OK</pre>
+// 使用：只傳要改的
+updateUser(1, { name: "新名字" });         // ✅
+updateUser(1, { id: 2 });                  // ✅ Partial 允許
+updateUser(1, { name: "A", email: "b@c.com" }); // ✅</pre>
 
 <div class="callout callout-tip">
-<strong>Interview script:</strong> "I use <code>Partial&lt;T&gt;</code> for PATCH endpoints where the caller only sends the fields they want to change. It saves me from defining a separate 'UpdateUserPayload' type."
+<strong>面試腳本：</strong>「我用 <code>Partial&lt;T&gt;</code> 處理 PATCH endpoint — 呼叫端只傳想改的欄位。省去另外定義一個 UpdateUserPayload 型別。」
 </div>
 
 <hr>
 
-<h2>2. Pick&lt;T, Keys&gt; — "select a subset"</h2>
+<h2>2. Pick&lt;T, Keys&gt; — 「選取子集」</h2>
 
-<pre>interface User {
+<pre>
+interface User {
   id: number;
   name: string;
   email: string;
@@ -78,146 +83,132 @@ updateUser(1, { id: 2, name: "A", email: "b@c.com" }); // OK</pre>
   createdAt: Date;
 }
 
-// Pick only the fields you want to expose
+// 只選要曝光的欄位
 type PublicProfile = Pick&lt;User, 'id' | 'name'&gt;;
-// Result: { id: number; name: string; }</pre>
+// 結果：{ id: number; name: string; }</pre>
 
-<h3>When to use it in an interview</h3>
-<p><strong>DTO projection</strong> — your API shouldn't return <code>password</code> or internal fields:</p>
+<h3>面試中使用情境</h3>
+<p><strong>DTO 投影（Projection）</strong> — API 不該回傳 password 或內部欄位：</p>
 
-<pre>function getProfile(user: User): PublicProfile {
+<pre>
+function getProfile(user: User): PublicProfile {
   return {
     id: user.id,
     name: user.name,
   };
-  // TypeScript error if you try to return password by accident
+  // 如果不小心回傳 password，TypeScript 會報錯
 }</pre>
 
 <hr>
 
-<h2>3. Omit&lt;T, Keys&gt; — "exclude a subset"</h2>
+<h2>3. Omit&lt;T, Keys&gt; — 「排除子集」</h2>
 
-<pre>interface User {
+<pre>
+interface User {
   id: number;
   name: string;
   email: string;
   password: string;
 }
 
-// Remove the fields you don't want
+// 移除不想要的欄位
 type SafeUser = Omit&lt;User, 'password'&gt;;
-// Result: { id: number; name: string; email: string; }</pre>
+// 結果：{ id: number; name: string; email: string; }</pre>
 
-<h3>Pick vs Omit — which one?</h3>
+<h3>Pick vs Omit 怎麼選？</h3>
 <table>
 <tr><th></th><th>Pick</th><th>Omit</th></tr>
-<tr><td>You know which fields to <strong>keep</strong></td><td>Pick&lt;T, 'id' | 'name'&gt;</td><td></td></tr>
-<tr><td>You know which fields to <strong>remove</strong></td><td></td><td>Omit&lt;T, 'password'&gt;</td></tr>
+<tr><td>你知道要<strong>保留</strong>哪些</td><td><code>Pick&lt;T, 'id' | 'name'&gt;</code></td><td></td></tr>
+<tr><td>你知道要<strong>移除</strong>哪些</td><td></td><td><code>Omit&lt;T, 'password'&gt;</code></td></tr>
 </table>
 
-<p><strong>Rule of thumb:</strong> If you're keeping 2 out of 5 fields, use <code>Pick</code>. If you're removing 1 out of 5, use <code>Omit</code>.</p>
+<p><strong>原則：</strong>5 個欄位要留 2 個 → 用 Pick。5 個欄位要移除 1 個 → 用 Omit。</p>
 
 <hr>
 
-<h2>4. Bonus: Combining them</h2>
+<h2>4. 進階：組合使用</h2>
 
-<pre>interface User {
+<pre>
+interface User {
   id: number;
   name: string;
   email: string;
   password: string;
 }
 
-// "update user" payload: everything except id, everything optional
+// 「更新使用者」的 payload：id 不能改，其他可選
 type UpdateUserPayload = Partial&lt;Omit&lt;User, 'id'&gt;&gt;;
-// Result: { name?: string; email?: string; password?: string; }
+// 結果：{ name?: string; email?: string; password?: string; }
 
-// Usage
+// 使用
 function updateUser(id: number, changes: UpdateUserPayload) { ... }
 
-updateUser(1, { name: "New" });  // OK
-updateUser(1, { name: "New", password: "secret" });  // OK
-updateUser(1, { id: 2 });  // Error: id is not in UpdateUserPayload</pre>
+updateUser(1, { name: "新名字" });  // ✅
+updateUser(1, { name: "新", password: "secret" });  // ✅
+updateUser(1, { id: 2 });  // ❌ Error: id 不在 UpdateUserPayload 中</pre>
 
 <div class="callout callout-tip">
-<strong>Interview script:</strong> "I compose utility types — <code>Partial&lt;Omit&lt;User, 'id'&gt;&gt;</code> is 'everything optional except id'. This avoids defining a dozen one-off types."
+<strong>面試腳本：</strong>「我組合 utility types — <code>Partial&lt;Omit&lt;User, 'id'&gt;&gt;</code> 意思是『id 之外全部可選』。這樣就不用為每個場景定義一個型別。」
 </div>
 
 <hr>
 
-<h2>5. Puzzles (Easy)</h2>
+<h2>5. 練習題</h2>
 
 <div class="quiz-question">
-<p><strong>Puzzle 1:</strong> What type does <code>Pick&lt;User, 'email'&gt;</code> produce?</p>
+<p><strong>題目 1：</strong><code>Pick&lt;User, 'email'&gt;</code> 的結果是什麼？</p>
 <pre>interface User { id: number; name: string; email: string; }</pre>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Answer:</strong> <code>{ email: string; }</code></p></div>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>答案：</strong><code>{ email: string; }</code></p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Puzzle 2:</strong> What type does <code>Omit&lt;User, 'id' | 'name'&gt;</code> produce?</p>
+<p><strong>題目 2：</strong><code>Omit&lt;User, 'id' | 'name'&gt;</code> 的結果是什麼？</p>
 <pre>interface User { id: number; name: string; email: string; }</pre>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Answer:</strong> <code>{ email: string; }</code></p></div>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>答案：</strong><code>{ email: string; }</code></p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Puzzle 3:</strong> What's wrong with using <code>Partial&lt;User&gt;</code> for <code>UpdateUserPayload</code> instead of <code>Partial&lt;Omit&lt;User, 'id'&gt;&gt;</code>?</p>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Answer:</strong> <code>Partial&lt;User&gt;</code> would make <code>id</code> optional (<code>id?: number</code>), which means someone could accidentally change the user's ID in an update. <code>Partial&lt;Omit&lt;User, 'id'&gt;&gt;</code> removes <code>id</code> entirely so it's not even in the type.</p></div>
-</div>
-
-<div class="quiz-question">
-<p><strong>Puzzle 4:</strong> Your team has this type:</p>
-<pre>interface BlogPost {
-  id: number;
-  title: string;
-  content: string;
-  authorId: number;
-  createdAt: Date;
-  updatedAt: Date;
-}</pre>
-<p>You need a type for "creating a new post" (no id, no dates, but all other fields required). What utility types do you use?</p>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Answer:</strong> <code>Omit&lt;BlogPost, 'id' | 'createdAt' | 'updatedAt'&gt;</code></p></div>
+<p><strong>題目 3：</strong>用 <code>Partial&lt;User&gt;</code> 當 PATCH payload 會有什麼問題？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>答案：</strong><code>Partial&lt;User&gt;</code> 會讓 <code>id</code> 變成可選（<code>id?: number</code>），代表使用者可能不小心改到自己的 ID。正確做法是 <code>Partial&lt;Omit&lt;User, 'id'&gt;&gt;</code>，把 id 徹底移掉。</p></div>
 </div>
 
 <hr>
 
-<h2>6. Interview Answer Script</h2>
-
-<p>When the interviewer says "Tell me about some utility types you use":</p>
+<h2>6. 面試完整回答</h2>
 
 <blockquote>
-<p>"I use three utility types regularly. <code>Partial&lt;T&gt;</code> to make all fields optional — great for PATCH endpoints. <code>Pick&lt;T, K&gt;</code> to select a subset of fields — I use it for API responses that only expose certain fields. And <code>Omit&lt;T, K&gt;</code> to exclude fields — useful for removing internal data like <code>password</code> from a user type.</p>
-<p>"I also compose them — <code>Partial&lt;Omit&lt;User, 'id'&gt;&gt;</code> gives me 'everything optional except the ID.' The key is that I don't need to manually redefine types for each scenario; the utility types derive the new type from the original."</p>
+<p>"我常用三個 utility types。<code>Partial&lt;T&gt;</code> 讓全部欄位變可選 — 適合 PATCH endpoint。<code>Pick&lt;T, K&gt;</code> 選取子集 — 用於 API 回應只曝光特定欄位。<code>Omit&lt;T, K&gt;</code> 排除欄位 — 用於移除敏感資料如 password。</p>
+<p>"我也會組合它們 — <code>Partial&lt;Omit&lt;User, 'id'&gt;&gt;</code> 的意思是『id 不能改，其他可選』。重點是不需要為每個場景手動定義型別，utility types 會從原始型別推導出來。"</p>
 </blockquote>
 
 <hr>
 
-<h2>What We Did NOT Cover (Yet)</h2>
+<h2>這課沒教到的（之後會補）</h2>
 <ul>
-<li><code>Record&lt;K, V&gt;</code>, <code>ReturnType&lt;T&gt;</code>, <code>Awaited&lt;T&gt;</code> — we'll get to these</li>
-<li>Mapped types (<code>[K in keyof T]</code>) — how utility types work internally</li>
-<li>Discriminated unions — state machine pattern</li>
-<li>Conditional types — <code>infer</code>, <code>extends ? :</code></li>
+<li><code>Record&lt;K, V&gt;</code>、<code>ReturnType&lt;T&gt;</code>、<code>Awaited&lt;T&gt;</code></li>
+<li>Mapped types（<code>[K in keyof T]</code>）— utility type 的內部實作</li>
+<li>Discriminated unions — 狀態機模式</li>
+<li>Conditional types — <code>infer</code>、<code>extends ? :</code></li>
 </ul>
-<p>You don't need these yet. Master Partial, Pick, and Omit first.</p>
+<p>先精通 Partial、Pick、Omit 再學這些。</p>
 
 <hr>
 
-<h2>Primary Source</h2>
-<p><a href="https://www.typescriptlang.org/docs/handbook/utility-types.html">TypeScript Handbook: Utility Types</a> — just read the entries for Partial, Pick, and Omit. Ignore the rest for now.</p>
+<h2>參考資料</h2>
+<p><a href="https://www.typescriptlang.org/docs/handbook/utility-types.html">TypeScript 手冊：Utility Types</a> — 只看 Partial、Pick、Omit 就好，其他的先略過。</p>
 
 <hr>
 
-<p style="color: var(--gray); font-size: 0.85em;">Better? Still fuzzy? Tell me what's unclear and I'll adjust.</p>
+<p style="color: var(--gray); font-size: 0.85em;">還可以嗎？哪邊不清楚告訴我，我再調整。</p>
 
 <script>
 function toggleAnswer(btn) {
   var answer = btn.nextElementSibling;
   answer.classList.toggle('show');
-  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+  btn.textContent = answer.classList.contains('show') ? '隱藏答案' : '看答案';
 }
 </script>
 

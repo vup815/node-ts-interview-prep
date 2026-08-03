@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,60 +8,57 @@
 </head>
 <body>
 
-<p><span class="tag tag-node">Node.js</span> <span class="tag tag-interview">Interview</span></p>
+<p><span class="tag tag-node">Node.js</span> <span class="tag tag-interview">面試</span></p>
 
 <h1>Lesson 3: Streams & Buffers</h1>
-<p><em>The second-most-asked Node.js deep-dive topic. Streams are how Node handles large data without eating all your RAM.</em></p>
-<p>Prerequisite: <a href="0001-nodejs-event-loop.html">Lesson 1 (Event Loop)</a></p>
+<p><em>Node.js 第二常考的深入題。Streams 是 Node 處理大量資料時不爆記憶體的方式。</em></p>
+<p>先修：<a href="0001-nodejs-event-loop.html">Lesson 1（Event Loop）</a></p>
 
 <hr>
 
-<h2>Why This Matters</h2>
-<p>Interviewers ask about streams to test whether you understand how Node handles <strong>real-world data at scale</strong>. Anyone can read a file with <code>readFileSync</code> — knowing when and why to use streams separates backend engineers from scripters.</p>
+<h2>為什麼重要</h2>
+<p>面試官考 streams 是想知道你知不知道 Node 怎麼處理<strong>真實世界的大規模資料</strong>。誰都會用 readFileSync 讀檔案 — 知道什麼時候、為什麼用 streams 才是後端工程師和腳本工人的差別。</p>
 
 <hr>
 
-<h2>1. The Problem Streams Solve</h2>
+<h2>1. Streams 解決的問題</h2>
 
-<pre>// Bad — loads entire file into memory
+<pre>
+// 不好的做法 — 一次載入整個檔案到記憶體
 const fs = require('fs');
 const data = fs.readFileSync('huge-file.log', 'utf8');
-// Memory usage: size of the whole file (could be 500MB)
+// 記憶體用量：等於整個檔案大小（可能 500MB）
 
-// Good — processes chunk by chunk
+// 好的做法 — 一個 chunk 一個 chunk 處理
 const readStream = fs.createReadStream('huge-file.log', 'utf8');
 readStream.on('data', (chunk) =&gt; {
-  console.log(`Received ${chunk.length} bytes`);
+  console.log(`收到 ${chunk.length} bytes`);
 });
-// Memory usage: only ~64KB at a time (default highWaterMark)</pre>
+// 記憶體用量：一次只佔 ~64KB（預設 highWaterMark）</pre>
 
-<p><strong>Without streams:</strong> you wait for the entire file/response to load into RAM, then process it.<br>
-<strong>With streams:</strong> you process data <strong>as it arrives</strong>, in small chunks.</p>
-
-<div class="callout callout-tip">
-<strong>Interview script:</strong> "Streams let me process data piece-by-piece instead of loading everything into memory. For a 2GB file, streams use ~64KB of RAM. Without streams, the same operation would crash the process."
-</div>
+<p><strong>沒用 streams：</strong>等整個檔案/回應都載入到 RAM，才開始處理。<br>
+<strong>用 streams：</strong>資料<strong>一到就處理</strong>，一次只處理一小塊。</p>
 
 <hr>
 
-<h2>2. The Four Types</h2>
+<h2>2. 四種 Stream 型別</h2>
 
 <table>
-<tr><th>Type</th><th>Direction</th><th>Example</th></tr>
-<tr><td><strong>Readable</strong></td><td>Source → you</td><td><code>fs.createReadStream</code>, HTTP request body</td></tr>
-<tr><td><strong>Writable</strong></td><td>You → destination</td><td><code>fs.createWriteStream</code>, HTTP response</td></tr>
-<tr><td><strong>Duplex</strong></td><td>Both directions</td><td>TCP socket, WebSocket</td></tr>
-<tr><td><strong>Transform</strong></td><td>Modify data in transit</td><td><code>zlib.createGzip</code>, encryption</td></tr>
+<tr><th>型別</th><th>方向</th><th>範例</th></tr>
+<tr><td><strong>Readable</strong></td><td>來源 → 你</td><td><code>fs.createReadStream</code>、HTTP request body</td></tr>
+<tr><td><strong>Writable</strong></td><td>你 → 目的地</td><td><code>fs.createWriteStream</code>、HTTP response</td></tr>
+<tr><td><strong>Duplex</strong></td><td>雙向</td><td>TCP socket、WebSocket</td></tr>
+<tr><td><strong>Transform</strong></td><td>串流中修改資料</td><td><code>zlib.createGzip</code>、加密</td></tr>
 </table>
 
-<pre>// Readable: read data
+<pre>
+// Readable：讀取資料
 const readable = fs.createReadStream('input.txt');
 
-// Writable: write data
+// Writable：寫入資料
 const writable = fs.createWriteStream('output.txt');
 
-// Duplex: read AND write (like a phone call)
-// Transform: modify data as it passes through (like a translator)
+// Transform：資料通過時修改（像翻譯員）
 const { Transform } = require('stream');
 const upperCase = new Transform({
   transform(chunk, encoding, callback) {
@@ -69,151 +66,141 @@ const upperCase = new Transform({
   }
 });
 
-// Pipe them together: read → transform → write
+// 用 pipe 串起來：讀 → 轉換 → 寫入
 readable.pipe(upperCase).pipe(writable);
-// "hello" → "HELLO" → written to output.txt</pre>
+// "hello" → "HELLO" → 寫進 output.txt</pre>
 
 <hr>
 
-<h2>3. Pipe — The Key Concept</h2>
+<h2>3. Pipe — 核心概念</h2>
 
-<p><code>.pipe()</code> is the glue. It connects a Readable stream to a Writable stream and handles <strong>backpressure automatically</strong>.</p>
+<p><code>.pipe()</code> 是 glue。它把 Readable stream 接到 Writable stream，並<strong>自動處理 backpressure</strong>。</p>
 
-<pre>// Serve a file via HTTP — the classic interview example
+<pre>
+// 用 HTTP 串流檔案 — 面試經典範例
 const http = require('http');
 const fs = require('fs');
 
 http.createServer((req, res) =&gt; {
-  // Stream the file directly to the response
-  // No buffering, no waiting for the full file
+  // 直接串流檔案到 response
+  // 不用等整個檔案讀完
   const stream = fs.createReadStream('big-video.mp4');
   stream.pipe(res);
 }).listen(3000);</pre>
 
-<p><code>stream.pipe(res)</code> does three things:</p>
+<p><code>stream.pipe(res)</code> 做了三件事：</p>
 <ol>
-<li>Reads chunks from the file</li>
-<li>Writes them to the HTTP response</li>
-<li>Pauses the read if the response is slower than the file read (backpressure)</li>
+<li>從檔案讀取 chunk</li>
+<li>寫入 HTTP response</li>
+<li>如果 response 比檔案讀取慢，自動暫停讀取（backpressure）</li>
 </ol>
 
 <hr>
 
-<h2>4. Backpressure — The Tricky Part</h2>
+<h2>4. Backpressure — 最難的部分</h2>
 
-<p><strong>Backpressure</strong> is what happens when the <strong>writer is slower than the reader</strong>. Without it, data would pile up in memory and crash the process.</p>
+<p><strong>Backpressure</strong> 是當<strong>寫入端跟不上讀取端</strong>時發生的狀況。沒處理好，資料會一直累積在記憶體，最後 crash。</p>
 
-<pre>// What pipe() does internally:
+<pre>
+// pipe() 內部做的事：
 const readable = fs.createReadStream('source.txt');
 const writable = fs.createWriteStream('dest.txt');
 
 readable.on('data', (chunk) =&gt; {
   const canWriteMore = writable.write(chunk);
   if (!canWriteMore) {
-    // Destination is overwhelmed — pause the source
+    // 目的地不堪負荷 — 暫停來源
     readable.pause();
     writable.once('drain', () =&gt; {
-      // Destination is ready for more — resume
+      // 目的地準備好了 — 恢復讀取
       readable.resume();
     });
   }
 });</pre>
 
 <div class="callout callout-warn">
-<strong>Interview trap:</strong> If you manually listen to <code>'data'</code> events and <code>.write()</code> without handling backpressure, you'll buffer unlimited data in memory. This is why <code>.pipe()</code> is the safe default — it handles backpressure for you.
-</div>
-
-<div class="callout callout-tip">
-<strong>Interview script:</strong> "Backpressure happens when the writable stream can't keep up with the readable stream. <code>.pipe()</code> handles it automatically — it pauses the source when the internal buffer fills, and resumes on the <code>'drain'</code> event."
+<strong>面試陷阱：</strong>如果你自己監聽 <code>'data'</code> 事件然後呼叫 <code>.write()</code> 但沒處理 backpressure，資料會無上限地在記憶體中累積。這就是為什麼 <code>.pipe()</code> 是安全的預設做法 — 它會自動處理 backpressure。
 </div>
 
 <hr>
 
-<h2>5. Buffers — Raw Binary Data</h2>
+<h2>5. Buffer — 原始二進位資料</h2>
 
-<p>A <strong>Buffer</strong> is a fixed-size chunk of raw memory allocated <strong>outside the V8 heap</strong>. Every stream chunk is a Buffer (unless you specify encoding).</p>
+<p><strong>Buffer</strong> 是一塊固定大小的原始記憶體，配置在 <strong>V8 heap 之外</strong>。每個 stream chunk 預設就是 Buffer（除非你指定 encoding）。</p>
 
-<pre>// Create a buffer from a string
+<pre>
+// 從字串建立 Buffer
 const buf = Buffer.from('hello');
 console.log(buf);        // &lt;Buffer 68 65 6c 6c 6f&gt;
 console.log(buf.length); // 5
-console.log(buf[0]);     // 104 (ASCII code for 'h')
+console.log(buf[0]);     // 104（'h' 的 ASCII 碼）
 
-// Buffers are NOT resizable
-buf[0] = 72;  // 'H' in ASCII
+// Buffer 不能調整大小
+buf[0] = 72;  // 'H'
 console.log(buf.toString()); // 'Hello'
 
-// Combine buffers
+// 合併 Buffer
 const a = Buffer.from('Hello ');
 const b = Buffer.from('World');
 const c = Buffer.concat([a, b]);
 console.log(c.toString()); // 'Hello World'</pre>
 
-<h3>Why Buffers matter in interviews</h3>
+<h3>面試中為什麼 Buffer 重要</h3>
 <ul>
-<li>Streams emit Buffers by default — you need to know this</li>
-<li>Buffers live outside V8 — large buffers don't trigger garbage collection on the main thread</li>
-<li><code>buf.toString('utf8')</code> converts to string; <code>Buffer.from(str)</code> converts back</li>
+<li>Streams 預設 emit Buffer — 你必須知道這件事</li>
+<li>Buffer 在 V8 之外 — 大 Buffer 不會觸發主執行緒的 GC</li>
+<li><code>buf.toString('utf8')</code> 轉成字串；<code>Buffer.from(str)</code> 轉回來</li>
 </ul>
 
 <hr>
 
-<h2>6. Puzzles</h2>
+<h2>6. 練習題</h2>
 
 <div class="quiz-question">
-<p><strong>Puzzle 1:</strong> What's the advantage of serving a file via <code>fs.createReadStream().pipe(res)</code> instead of <code>fs.readFile()</code>?</p>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Answer:</strong> Memory usage. <code>readFile</code> loads the entire file into RAM before sending it. For a 2GB file, that's 2GB of RAM. The stream sends chunks as they're read — RAM usage stays at ~64KB regardless of file size. Also, the response starts faster (first byte arrives before the file is fully read).</p></div>
+<p><strong>題目 1：</strong>用 stream 串流檔案傳給 HTTP response 比用 readFile 好在哪？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>答：</strong>記憶體用量。readFile 把整個檔案載入 RAM 才送出去。2GB 的檔案就是 2GB RAM。Stream 一邊讀一邊送 — RAM 用量固定 ~64KB，不管檔案多大。而且 response 更快開始（第一個 byte 在檔案還沒讀完前就送出去了）。</p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Puzzle 2:</strong> What type of stream would you use to encrypt data while reading it from a file?</p>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Answer:</strong> A <strong>Transform</strong> stream. You read from the file (Readable), pass through the encryption Transform, then write to a file or socket (Writable).</p>
-<pre>readable.pipe(encryptTransform).pipe(writable);</pre></div>
+<p><strong>題目 2：</strong>你想一邊讀檔案一邊加密，要用哪種 stream？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>答：</strong><strong>Transform</strong> stream。讀取（Readable）→ 加密（Transform）→ 寫入（Writable）。</p></div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Puzzle 3:</strong> What happens if you <code>pipe()</code> without the writable handling backpressure?</p>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Answer:</strong> <code>.pipe()</code> handles backpressure automatically — it pauses the readable when <code>writable.write()</code> returns <code>false</code> and resumes on <code>'drain'</code>. This is built into pipe. The danger is when you manually listen to <code>'data'</code> and call <code>.write()</code> yourself without checking the return value.</p></div>
-</div>
-
-<div class="quiz-question">
-<p><strong>Puzzle 4:</strong> If a Buffer has 5 bytes, what is <code>Buffer.from('hi').length</code>?</p>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer"><p><strong>Answer:</strong> <code>2</code> — each character is 1 byte in UTF-8. Buffer.length === number of bytes, not characters. For multi-byte characters (like '嗨'), it would be more.</p></div>
+<p><strong>題目 3：</strong>Buffer.from('hi').length 是多少？為什麼？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><strong>答：</strong>2。每個字母在 UTF-8 佔 1 個 byte。Buffer.length 是 byte 數，不是字元數。中文字（如「嗨」）會佔 3 個 bytes。</p></div>
 </div>
 
 <hr>
 
-<h2>7. Interview Answer Script</h2>
-
-<p>When the interviewer says "Tell me about streams in Node.js":</p>
+<h2>7. 面試完整回答</h2>
 
 <blockquote>
-<p>"Streams are how Node handles large data without loading it all into memory. There are four types: Readable, Writable, Duplex, and Transform. The built-in <code>.pipe()</code> method connects them and handles backpressure — when the destination can't keep up, it pauses the source and resumes on the drain event.</p>
-<p>"I use streams for file uploads, log processing, and serving media files. The key advantage is memory efficiency: a 2GB file streamed over HTTP uses ~64KB of RAM. Without streams, the same operation would buffer the entire file in memory or crash.</p>
-<p>"Streams emit Buffers by default — raw binary data allocated outside the V8 heap. I convert to strings with <code>.toString()</code> when I need text, but for binary data (images, video), Buffers are exactly what I want."</p>
+<p>"Streams 是 Node 處理大量資料的方式 — 不一次載入全部記憶體，而是資料一到就處理。有四種型別：Readable、Writable、Duplex、Transform。內建的 <code>.pipe()</code> 方法把它們串起來，並自動處理 backpressure — 目的地跟不上時暫停來源，等 drain 事件後恢復。</p>
+<p>"我用 streams 處理檔案上傳、日誌處理、串流影音。關鍵優勢是記憶體效率：2GB 的檔案串流用 ~64KB RAM。不用 stream 的話，要嘛整包載入記憶體，要嘛 crash。</p>
+<p>"Streams 預設 emit Buffer — V8 heap 之外的原始二進位資料。要文字的話用 <code>.toString()</code> 轉換。二進位資料（圖片、影片）Buffer 就是我們要的。"</p>
 </blockquote>
 
 <hr>
 
-<h2>Primary Sources</h2>
+<h2>參考資料</h2>
 <ul>
-<li><a href="https://nodejs.org/api/stream.html">Node.js Docs: Stream</a> — authoritative</li>
-<li><a href="https://nodejs.org/api/buffer.html">Node.js Docs: Buffer</a> — Buffer API reference</li>
+<li><a href="https://nodejs.org/api/stream.html">Node.js 文件：Stream</a></li>
+<li><a href="https://nodejs.org/api/buffer.html">Node.js 文件：Buffer</a></li>
 </ul>
 
 <hr>
 
-<p style="color: var(--gray); font-size: 0.85em;">Clear? Any part too fast or too slow?</p>
+<p style="color: var(--gray); font-size: 0.85em;">清楚嗎？哪邊太快或太慢？</p>
 
 <script>
 function toggleAnswer(btn) {
   var answer = btn.nextElementSibling;
   answer.classList.toggle('show');
-  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+  btn.textContent = answer.classList.contains('show') ? '隱藏答案' : '看答案';
 }
 </script>
 
