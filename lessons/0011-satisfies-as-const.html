@@ -1,120 +1,212 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lesson 11: satisfies &amp; as const</title>
+<title>Lesson 11: satisfies & as const（中文版）</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
 
-<p><span class="tag tag-ts">TypeScript</span> <span class="tag tag-interview">Interview</span></p>
+<p><span class="tag tag-ts">TypeScript</span> <span class="tag tag-interview">面試</span></p>
 
-<h1>Lesson 11: satisfies &amp; as const</h1>
-<p><em>Modern TS features appearing in 2026 interviews — type-checking without widening.</em></p>
-
-<hr>
-
-<h2>Why This Matters</h2>
-<p>Interviewers ask about satisfies (TS 4.9+) because it reveals whether you understand the tension between type-checking and type-widening. as const tests literal types.</p>
+<h1>Lesson 11: satisfies & as const</h1>
+<p><em>TypeScript 4.9+ 的現代功能 — 2026 面試已經在問了。考你對型別系統的理解深度。</em></p>
 
 <hr>
 
-<h2>1. The Problem: Type Assertion Widens</h2>
+<h2>為什麼這題重要</h2>
+<p>面試官問 <code>satisfies</code> 和 <code>as const</code> 不是考語法，是考你能不能理解 TypeScript 型別系統中一個根本的 tension：<strong>「型別檢查」和「型別拓寬（widening）」之間的衝突</strong>。一個型別越安全就越寬（失去精確度），越精確就越難保證安全。這兩個功能就是在解決這個問題。</p>
+
+<hr>
+
+<h2>1. 問題：型別斷言（as）會拓寬</h2>
 
 <pre>
-const config = { port: 3000, debug: true } as Record&lt;string, unknown&gt;;
-config.port; // type: unknown ❌ — lost the number type
+// 你有一個 config object，想確保它符合某個型別
+const config = {
+  port: 3000,
+  debug: true,
+} as Record&lt;string, unknown&gt;;
+
+config.port; // 型別：unknown ❌ — 我們失去了 number 型別！
+config.debug; // 型別：unknown ❌</pre>
+
+<p>用 <code>as</code>（型別斷言）時，你在告訴 TypeScript「相信我，它就是這個型別」。但副作用是 TypeScript 會<strong>拓寬</strong>它 — 你失去了原本的 literal 型別。</p>
+
+<div class="callout callout-tip">
+<strong>為什麼會這樣？</strong>
+<p><code>as Type</code> 的語意是「把這個值當作 Type 看待」— 它會<strong>覆蓋</strong> TypeScript 自己推斷的型別。所以 TypeScript 放棄了原本推斷的精確型別，改用你指定的寬型別。</p>
+</div>
+
+<h2>2. satisfies：型別檢查但不拓寬</h2>
+
+<pre>
+const config = {
+  port: 3000,
+  debug: true,
+} satisfies Record&lt;string, unknown&gt;;
+
+config.port;  // 型別：number ✅ — 保留了！
+config.debug; // 型別：boolean ✅</pre>
+
+<p><code>satisfies</code> 做的事：檢查值是否符合型別，但<strong>不改變 TypeScript 推斷的型別</strong>。你同時得到安全驗證 + 精確型別。</p>
+
+<h2>3. 實際面試範例</h2>
+
+<pre>
+type Color = 'red' | 'green' | 'blue';
+type Config = Record&lt;string, unknown&gt;;
+
+// ❌ 用 as — 失去 union 型別
+const palette1 = {
+  primary: 'blue',
+  secondary: 'green',
+} as Config;
+// palette1.primary 是 unknown — 無法當 Color 使用
+
+// ✅ 用 satisfies — 保留 literal 型別
+const palette2 = {
+  primary: 'blue',
+  secondary: 'green',
+} satisfies Config;
+// palette2.primary 是 'blue'（literal）— 可以當 Color 使用
+
+function setColor(c: Color) { /* ... */ }
+setColor(palette2.primary); // ✅ OK — 'blue' 是 Color 的一種
+setColor(palette1.primary); // ❌ Error — 'unknown' 不是 Color
 </pre>
 
-<p>as tells TypeScript "trust me" — but it widens the type and discards literal values.</p>
-
-<h2>2. satisfies: Check Without Widen</h2>
+<h2>4. 另一個常見場景：物件 key 的驗證</h2>
 
 <pre>
-const config = { port: 3000, debug: true } satisfies Record&lt;string, unknown&gt;;
-config.port; // type: number ✅ — preserved!
-</pre>
+// 你想要一個物件，key 只能是特定字串，但 value 可以是不同型別
+type RouteMap = Record&lt;string, { path: string; component: string }&gt;;
 
-<p>satisfies checks conformity without changing the inferred type.</p>
+const routes = {
+  home: { path: '/', component: 'HomePage' },
+  about: { path: '/about', component: 'AboutPage' },
+  // 不小心打錯字：
+  // contatc: { path: '/contact', component: 'ContactPage' },
+} satisfies RouteMap;
+// ❌ Error: 'contatc' 拼錯了 — satisfies 會幫你抓到！</pre>
 
-<h2>3. Key Difference</h2>
+<h2>5. as const — Literal 型別</h2>
 
-<ul>
-<li>as Type = "make this Type" (widens, discards detail)</li>
-<li>satisfies Type = "check this matches, keep narrowest type"</li>
-</ul>
-
-<h2>4. as const — Literal Types</h2>
+<p><code>as const</code> 讓整個值變成<strong>深度 readonly</strong>，並把所有型別收窄到 literal，而不是拓寬後的型別。</p>
 
 <pre>
-// Without as const — widened
-const roles = ['admin', 'user', 'guest'];  // type: string[]
+// 沒用 as const — 被拓寬
+const roles = ['admin', 'user', 'guest'];
+// 型別：string[] ❌ — 失去了具體的字串
 
-// With as const — literal
+// 用 as const — 保留 literal
 const roles = ['admin', 'user', 'guest'] as const;
-// type: readonly ['admin', 'user', 'guest']
+// 型別：readonly ['admin', 'user', 'guest'] ✅
 
-// Extract union from array
+// 實戰用法：從陣列取出 union 型別
 type Role = typeof roles[number]; // 'admin' | 'user' | 'guest'
-</pre>
 
-<h2>5. Combining Both</h2>
+// 配合 exhaustive switch
+function handleRole(role: Role) {
+  switch (role) {
+    case 'admin': /* ... */ break;
+    case 'user':  /* ... */ break;
+    case 'guest': /* ... */ break;
+    default:
+      const _exhaustive: never = role; // 如果以後加新角色，編譯器會報錯
+      break;
+  }
+}</pre>
+
+<h2>6. 組合使用：最強模式</h2>
 
 <pre>
 const config = {
   apiUrl: 'https://api.example.com',
   port: 3000,
   roles: ['admin', 'user'] as const,
+  features: {
+    darkMode: true,
+    beta: false,
+  },
 } satisfies Record&lt;string, unknown&gt;;
 
-// config.port: number (not unknown)
-// config.roles: readonly ['admin', 'user']
-</pre>
+// 全部保留了精確型別：
+// config.apiUrl — literal 'https://api.example.com'
+// config.port — number
+// config.roles — readonly ['admin', 'user']
+// config.features.darkMode — boolean
+// 但同時都通過了 Record&lt;string, unknown&gt; 的驗證
 
-<h2>6. Interview Script</h2>
+// 如果你用 as Record&lt;string, unknown&gt;，全部變成 unknown</pre>
+
+<h2>7. satisfies vs as — 完整比較</h2>
+
+<table>
+<tr><th></th><th><code>as Type</code></th><th><code>satisfies Type</code></th></tr>
+<tr><td>語意</td><td>「把這當作 Type」</td><td>「檢查這是 Type，但保留原本型別」</td></tr>
+<tr><td>驗證</td><td>✅ 通過</td><td>✅ 通過</td></tr>
+<tr><td>拓寬？</td><td>✅ 會拓寬</td><td>❌ 不拓寬</td></tr>
+<tr><td>保留 literal</td><td>❌ 失去</td><td>✅ 保留</td></tr>
+<tr><td>什麼時候用</td><td>你比編譯器更清楚</td><td>你想要型別安全 + 精確型別</td></tr>
+</table>
+
+<h2>8. 面試完整回答</h2>
 
 <blockquote>
-"satisfies (TS 4.9+) checks that a value matches a type without widening it. I use it for config objects and event maps — anywhere I want type safety but need to preserve narrow types.
-
-"as const gives me literal types for arrays and objects. Combined with satisfies, I can validate against a constraint while keeping the most specific types for autocomplete and exhaustive checking."
+<p>"<code>satisfies</code>（TS 4.9+ 引入）讓我可以檢查一個值是否符合某個型別，<strong>但不會拓寬它</strong>。我主要用在三種場景：config 物件、事件對應表、設計 token — 任何我想要型別安全但又需要保留最精確推斷型別的地方。</p>
+<p>"<code>as const</code> 則是把陣列或物件的型別收窄到 literal，不讓 TypeScript 把它拓寬成 string[] 或一般物件型別。</p>
+<p>"兩個功能可以組合使用 — 例如用 <code>as const</code> 保留 roles 陣列的精確型別，再用 <code>satisfies</code> 確保整個 config 物件符合 <code>Record&lt;string, unknown&gt;</code>。這樣既有安全驗證，又有精確的 autocomplete 和 exhaustive type checking。"</p>
 </blockquote>
 
-<h2>7. Puzzles</h2>
+<h2>9. 練習題</h2>
 
 <div class="quiz-question">
-<p><strong>Puzzle 1:</strong> What's the type difference?</p>
+<p><strong>題目 1：</strong>以下兩者的型別差在哪？</p>
 <pre>const a = { x: 1 } as Record&lt;string, number&gt;;
 const b = { x: 1 } satisfies Record&lt;string, number&gt;;</pre>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer">a.x is number (widened). b.x is 1 (literal). Both pass the type check, but satisfies preserves the original type.</div>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer">
+<p><strong>a.x</strong> 是 <code>number</code>（被拓寬了）。<strong>b.x</strong> 是 literal <code>1</code>（保留了）。兩個都通過型別檢查，但 <code>satisfies</code> 不會丟棄原始的精確型別。</p>
+</div>
 </div>
 
 <div class="quiz-question">
-<p><strong>Puzzle 2:</strong> What type is Fruit?</p>
+<p><strong>題目 2：</strong>以下程式碼，Fruit 是什麼型別？如果沒有 as const 呢？</p>
 <pre>const fruits = ['apple', 'banana'] as const;
 type Fruit = typeof fruits[number];</pre>
-<button class="quiz-toggle" onclick="toggleAnswer(this)">Reveal answer</button>
-<div class="quiz-answer">'apple' | 'banana' — without as const it would be string.</div>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer">
+<p>有 <code>as const</code>：<code>'apple' | 'banana'</code>。沒有 <code>as const</code>：<code>string</code>（陣列被拓寬了）。</p>
+</div>
+</div>
+
+<div class="quiz-question">
+<p><strong>題目 3：</strong>面試官問：「你用 satisfies 還是用 as？什麼時候用哪個？」請用中文回答。</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer">
+<p>"預設用 <code>satisfies</code>，因為我想要型別安全又不想失去精確型別。只有在極少數需要 override 型別的時候才用 <code>as</code> — 例如你從 JSON.parse 拿到的資料，你知道它一定是某個型別但 TypeScript 不知道。"</p>
+</div>
 </div>
 
 <hr>
 
-<h2>Primary Sources</h2>
+<h2>參考資料</h2>
 <ul>
-<li><a href="https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html#the-satisfies-operator">TS 4.9: satisfies</a></li>
-<li><a href="https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-types">TS Handbook: Literal Types</a></li>
+<li><a href="https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html#the-satisfies-operator">TS 4.9 更新說明：satisfies</a></li>
+<li><a href="https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-types">TS 手冊：Literal Types</a></li>
 </ul>
 
 <hr>
 
-<p style="color: var(--gray); font-size: 0.85em;">Questions? Tell the agent.</p>
+<p style="color: var(--gray); font-size: 0.85em;">夠深入嗎？還有想補充的主題嗎？</p>
 
 <script>
 function toggleAnswer(btn) {
   var answer = btn.nextElementSibling;
   answer.classList.toggle('show');
-  btn.textContent = answer.classList.contains('show') ? 'Hide answer' : 'Reveal answer';
+  btn.textContent = answer.classList.contains('show') ? '隱藏答案' : '看答案';
 }
 </script>
 

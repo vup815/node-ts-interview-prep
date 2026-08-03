@@ -1,71 +1,188 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lesson 10: CommonJS vs ESM</title>
+<title>Lesson 10: CommonJS vs ESM（中文版）</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
 
-<p><span class="tag tag-node">Node.js</span> <span class="tag tag-interview">Interview</span></p>
+<p><span class="tag tag-node">Node.js</span> <span class="tag tag-interview">面試</span></p>
 
 <h1>Lesson 10: CommonJS vs ESM</h1>
-<p><em>Node.js 的兩個 module system — 面試必考。</em></p>
+<p><em>Node.js 的兩個模組系統 — 面試必考題，考你對 runtime 的理解深度。</em></p>
 
 <hr>
 
-<h2>Why This Matters</h2>
-<p>Interviewers love "What's the difference between require and import?" It tests whether you understand synchronous vs asynchronous loading and the ongoing ecosystem migration.</p>
+<h2>為什麼這題重要</h2>
+<p>面試官很愛問「require 和 import 差在哪？」因為這題能快速判斷你對 Node.js 的理解程度 — 不只是會用哪個語法，而是懂不懂同步 vs 非同步的載入機制、tree-shaking、以及整個生態系的遷移方向。大多數人會用但講不清楚 trade-off。</p>
 
 <hr>
 
-<h2>1. The Two Systems</h2>
+<h2>1. 兩個系統一覽</h2>
 
 <table>
-<tr><th></th><th>CommonJS</th><th>ES Modules</th></tr>
-<tr><td>Syntax</td><td>require / module.exports</td><td>import / export</td></tr>
-<tr><td>Loading</td><td>Synchronous</td><td>Asynchronous</td></tr>
-<tr><td>Default</td><td>.js (no type:module)</td><td>.mjs or type:module</td></tr>
-<tr><td>Tree-shaking</td><td>Not possible</td><td>Supported</td></tr>
-<tr><td>Top-level await</td><td>Not supported</td><td>Supported</td></tr>
+<tr><th></th><th>CommonJS (CJS)</th><th>ES Modules (ESM)</th></tr>
+<tr><td><strong>語法</strong></td><td><code>require()</code> / <code>module.exports</code></td><td><code>import</code> / <code>export</code></td></tr>
+<tr><td><strong>載入方式</strong></td><td>同步（會 blocking）</td><td>非同步（不 blocking）</td></tr>
+<tr><td><strong>Node 預設</strong></td><td><code>.js</code>（無 <code>"type":"module"</code>）</td><td><code>.mjs</code> 或 <code>"type":"module"</code></td></tr>
+<tr><td><strong>Tree-shaking</strong></td><td>❌ 不可能</td><td>✅ 打包工具可消除未用到的 export</td></tr>
+<tr><td><strong>Top-level await</strong></td><td>❌ 不支援</td><td>✅ 支援</td></tr>
+<tr><td><strong>條件式載入</strong></td><td>✅ 可在 if 裡 require</td><td>⚠️ 只能用 dynamic import()</td></tr>
+<tr><td><strong>靜態分析</strong></td><td>❌ 無法靜態分析依賴</td><td>✅ import 可靜態分析</td></tr>
+<tr><td><strong>執行時期</strong></td><td>呼叫 require() 當下解析</td><td>執行前先解析完所有 import</td></tr>
 </table>
 
-<h2>2. Syntax</h2>
+<h2>2. 語法比較</h2>
 
 <pre>
-// CJS
+// ── CommonJS ──
 const fs = require('fs');
-module.exports = { myFunc };
+const { readFile } = require('fs');
+module.exports = { myFunction };
+exports.myFunction = () => {};
 
-// ESM
+// ── ES Modules ──
 import fs from 'fs';
-export const myFunc = () => {};
-</pre>
+import { readFile } from 'fs';
+export const myFunction = () => {};
+export default myFunction;</pre>
 
-<h2>3. Sync vs Async</h2>
+<h2>3. 最關鍵的差異：同步 vs 非同步</h2>
+
+<p>這是面試官會深入追問的地方。</p>
 
 <pre>
-// CJS: blocks until loaded
+// CJS：require() 是同步的 — 下一行程式碼要等模組載入完才執行
 const lodash = require('lodash');
-console.log('ready');  // after lodash loaded
+console.log('ready');  // 等 lodash 完全載入後才執行
 
-// ESM: hoisted
+// ESM：import 會被提升（hoisted）— 所有模組在執行程式碼前就解析完
 import lodash from 'lodash';
-console.log('ready');  // after all modules parsed
-</pre>
+console.log('ready');  // 在所有模組解析完後才執行</pre>
 
-<h2>4. Interview Script</h2>
+<h3>條件式載入 — 實際影響</h3>
+
+<pre>
+// ✅ CJS — 可以在 if 裡面 require（這是 CJS 的優勢）
+let logger;
+if (process.env.NODE_ENV === 'production') {
+  logger = require('./logger-prod');
+} else {
+  logger = require('./logger-dev');
+}
+
+// ❌ ESM — static import 只能在頂層
+// import logger from './logger-dev';  // 錯誤：不能放在 if 裡
+
+// ✅ ESM — 用 dynamic import()，但它是非同步的
+if (process.env.NODE_ENV === 'production') {
+  const logger = await import('./logger-prod.js');
+}</pre>
+
+<h2>4. CJS 的 module wrapper</h2>
+
+<p>CJS 的每個檔案都被包在一個函式裡，這就是為什麼 <code>require</code>、<code>module</code>、<code>exports</code>、<code>__dirname</code>、<code>__filename</code> 看起來是全域變數但其實是區域的：</p>
+
+<pre>
+// Node 實際上把你的程式碼包成這樣：
+(function(exports, require, module, __filename, __dirname) {
+  // 你的程式碼在這裡
+  const fs = require('fs');
+  module.exports = { ... };
+});
+
+// ESM 沒有這個 wrapper — 沒有 __dirname、__filename
+// 需要用 import.meta.url 來替代：
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);</pre>
+
+<h2>5. 循環依賴（Circular Dependency）</h2>
+
+<p>這是面試的進階題。兩個系統的行為不同：</p>
+
+<pre>
+// a.js (CJS)
+const b = require('./b');
+console.log('a 載入完成');
+
+// b.js (CJS)
+const a = require('./a');  // a 還沒載入完，拿到的是 partial exports
+console.log('b 載入完成');
+
+// CJS 的行為：b 拿到的是 a 目前已經 export 的部分（可能是空物件）
+// 不會報錯，但可能拿到 undefined
+
+// ESM 的行為：
+// import 是 live binding — 如果 a 還沒執行完，b 會拿到 reference
+// 但 ESM 不允許循環依賴中有未定義的 binding，會報 ReferenceError
+// 所以 ESM 對循環依賴更嚴格</pre>
+
+<h2>6. Node 怎麼決定用哪個系統</h2>
+
+<pre>
+// package.json 是開關
+{
+  "type": "module"    // ← 這個 package 底下的 .js 都是 ESM
+}
+{
+  "type": "commonjs"  // ← 這個 package 底下的 .js 都是 CJS（預設）
+}
+
+// 副檔名可以覆蓋：
+//   .mjs → 永遠是 ESM，不管 package.json
+//   .cjs → 永遠是 CJS，不管 package.json</pre>
+
+<h2>7. 面試完整回答</h2>
 
 <blockquote>
-"New projects should use ESM — it's the standard, supports tree-shaking, and top-level await. CommonJS is still widespread in existing codebases. The fundamental difference: require is synchronous and can be conditional; import is static and hoisted."
+<p>"新專案應該用 ESM — 它是 JavaScript 標準規格，支援 tree-shaking（打包時自動移除沒用到的程式碼）、top-level await，而且是整個生態系的未來方向。但 CommonJS 仍然廣泛存在於既有專案和 npm 套件中，所以我必須熟悉兩種語法。</p>
+<p>"兩者最根本的差異是載入行為：<code>require()</code> 是同步的，可以在條件式裡面使用；<code>import</code> 是靜態的、會被提升到頂層。如果要在 ESM 裡面做動態載入，我用 <code>import()</code>，它回傳一個 Promise。</p>
+<p>"另外要注意的是，CJS 有 module wrapper function（所以有 __dirname），ESM 沒有，需要用 import.meta.url 來替代。ESM 對循環依賴也比 CJS 嚴格。"</p>
 </blockquote>
 
-<h2>Primary Sources</h2>
+<h2>8. 面試追問題</h2>
+
+<div class="quiz-question">
+<p><strong>追問 1：</strong>你在一個 ESM 專案裡，想用 moment.js（CJS 套件），可以用嗎？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p>可以，ESM 可以用 <code>import</code> 載入 CJS 套件。Node 會自動處理轉換。但反過來，CJS 不能 <code>require()</code> ESM 套件（除非用 dynamic import）。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>追問 2：</strong>為什麼 tree-shaking 在 CJS 無法實現？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p>因為 CJS 的 <code>require()</code> 可以在任何地方執行（if 裡、函式裡），打包工具無法在編譯期靜態分析哪些 export 有被用到。ESM 的 <code>import</code> 只能在頂層，靜態結構固定，所以打包工具可以安全地刪除未使用的 export。</p></div>
+</div>
+
+<div class="quiz-question">
+<p><strong>追問 3：</strong><code>import()</code> 和 <code>require()</code> 都是動態載入，差在哪？</p>
+<button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
+<div class="quiz-answer"><p><code>require()</code> 是同步的（會 blocking），回傳的是 module.exports 的內容。<code>import()</code> 是非同步的，回傳的是 Promise，resolve 後的物件包含所有 export（包含 default 和 named）。<code>import()</code> 可以用在 CJS 和 ESM 中，但 <code>require()</code> 不能在 ESM 中使用。</p></div>
+</div>
+
+<hr>
+
+<h2>參考資料</h2>
 <ul>
-<li><a href="https://nodejs.org/api/esm.html">Node.js Docs: ECMAScript Modules</a></li>
-<li><a href="https://nodejs.org/api/modules.html">Node.js Docs: CommonJS Modules</a></li>
+<li><a href="https://nodejs.org/api/esm.html">Node.js 官方文件：ECMAScript Modules</a></li>
+<li><a href="https://nodejs.org/api/modules.html">Node.js 官方文件：CommonJS Modules</a></li>
 </ul>
+
+<hr>
+
+<p style="color: var(--gray); font-size: 0.85em;">這份中文版內容夠深入嗎？還需要加什麼？</p>
+
+<script>
+function toggleAnswer(btn) {
+  var answer = btn.nextElementSibling;
+  answer.classList.toggle('show');
+  btn.textContent = answer.classList.contains('show') ? '隱藏答案' : '看答案';
+}
+</script>
 
 </body>
 </html>
