@@ -16,7 +16,7 @@
 <hr>
 
 <h2>為什麼這題重要</h2>
-<p>每場 Node.js 面試至少會有一題 event loop — 可能是輸出順序題，也可能是「解釋非同步怎麼運作」。面試官回報，event loop 是區分表面理解和深層理解的第一道關卡。這堂課給你完整的心理模型和口頭回答腳本。</p>
+<p>每場 Node.js 面試至少會有一題 event loop。面試官回報，event loop 是區分表面理解和深層理解的第一道關卡。這堂課給你完整的心理模型和口頭回答腳本。</p>
 
 <hr>
 
@@ -30,7 +30,6 @@
 </div>
 
 <h3>六個 Phases</h3>
-<p>Event loop 循環六個 phase。面試中你會需要講清楚的 phase：</p>
 
 <table>
 <tr><th>Phase</th><th>執行的東西</th><th>相關 API</th></tr>
@@ -43,7 +42,11 @@
 </table>
 
 <h3>Microtask — 陷阱所在</h3>
-<p>每個 phase <strong>之間</strong>，event loop 會檢查 microtask 佇列。它們的優先級高於任何 macrotask。</p>
+<p><strong>Node 11+：</strong>在<strong>每個 macrotask callback 執行完之後</strong>，event loop 都會清空 microtask 佇列，然後才處理同一個 phase 的下一個 callback。這是為了與瀏覽器行為一致（HTML5 規範）。</p>
+
+<p>Node 10 及之前的行為則是在整個 phase 的所有 callback 都執行完後才清空 microtask。這是面試中可能會問的歷史差異。</p>
+
+<p>Microtask 的優先級高於任何 macrotask。</p>
 
 <table>
 <tr><th>佇列</th><th>優先級</th><th>API</th></tr>
@@ -51,7 +54,7 @@
 <tr><td>Promise microtask 佇列</td><td>第二</td><td><code>Promise.resolve().then(fn)</code>、<code>queueMicrotask(fn)</code>、<code>await</code></td></tr>
 </table>
 
-<h3>完整執行順序</h3>
+<h3>完整執行順序（Node 11+）</h3>
 <pre>
 1. 執行當前的同步程式碼（call stack）
 2. 清空整個 nextTick 佇列
@@ -59,11 +62,13 @@
 4. 執行一個目前 phase 的 macrotask（例如一個 timer callback）
 5. 再次清空整個 nextTick 佇列
 6. 再次清空整個 Promise microtask 佇列
-7. 移到下一個 phase，重複步驟 4
+7. 執行同一個 phase 的下一個 macrotask，重複步驟 5-6
+   直到目前 phase 的佇列清空
+8. 移到下一個 phase，重複步驟 4-7
 </pre>
 
 <div class="callout callout-warn">
-<strong>餓死 Event Loop：</strong>遞迴呼叫 <code>process.nextTick</code> 會讓 nextTick 佇列永遠清不空，event loop 永遠走不到 poll phase，所有 I/O 都無法處理。這就是為什麼 Node 官方警告不要濫用 nextTick。
+<strong>餓死 Event Loop：</strong>遞迴呼叫 <code>process.nextTick</code> 會讓 nextTick 佇列永遠清不空，event loop 永遠走不到 poll phase，所有 I/O 都無法處理。遞迴 <code>Promise.resolve().then()</code> 也會有一樣的效果。
 </div>
 
 <hr>
@@ -79,13 +84,13 @@
 │  └─────────────┬─────────────┘
 │  ┌─────────────┴─────────────┐
 │  │       idle, prepare       │  ← 內部
-│  └─────────────┬─────────────┘      ┌──────────────┐
-│  ┌─────────────┴─────────────┐      │   microtasks  │
-│  │           poll            │←─────┤  (nextTick +  │
-│  │  (I/O callbacks)          │      │   promises)   │
-│  └─────────────┬─────────────┘      │  每個 phase  │
-│  ┌─────────────┴─────────────┐      │   之間清空    │
-│  │          check            │      └──────────────┘
+│  └─────────────┬─────────────┘      ┌──────────────────────┐
+│  ┌─────────────┴─────────────┐      │ microtasks (nextTick  │
+│  │           poll            │←─────┤ + promises) 在每個    │
+│  │  (I/O callbacks)          │      │ callback 之後清空     │
+│  └─────────────┬─────────────┘      └──────────────────────┘
+│  ┌─────────────┴─────────────┐
+│  │          check            │
 │  │  (setImmediate)           │
 │  └─────────────┬─────────────┘
 │  ┌─────────────┴─────────────┐
@@ -101,97 +106,82 @@
 
 <div class="quiz-question">
 <p><strong>題目 1：</strong>基本順序</p>
-<pre>
-console.log('1');
-
+<pre>console.log('1');
 setTimeout(() =&gt; console.log('2'), 0);
-
 Promise.resolve().then(() =&gt; console.log('3'));
-
 console.log('4');</pre>
 <button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
 <div class="quiz-answer"><p><strong>輸出：</strong><code>1, 4, 3, 2</code></p>
-<p><strong>為什麼：</strong><code>1</code> 和 <code>4</code> 先同步執行。Promise 的 <code>.then</code> 是 microtask — 在 call stack 清空後、下一個 macrotask 之前執行。<code>setTimeout(0)</code> 是 macrotask — 在下一個 timers phase 執行。</p></div>
+<p><code>1</code> 和 <code>4</code> 先同步執行。Promise 的 <code>.then</code> 是 microtask — 在 call stack 清空後、下一個 macrotask 之前執行。<code>setTimeout(0)</code> 是 macrotask — 在下一個 timers phase 執行。</p></div>
 </div>
 
 <div class="quiz-question">
 <p><strong>題目 2：</strong>nextTick vs Promise</p>
-<pre>
-Promise.resolve().then(() =&gt; console.log('promise'));
+<pre>Promise.resolve().then(() =&gt; console.log('promise'));
 process.nextTick(() =&gt; console.log('nextTick'));
 console.log('sync');</pre>
 <button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
 <div class="quiz-answer"><p><strong>輸出：</strong><code>sync, nextTick, promise</code></p>
-<p><strong>為什麼：</strong><code>sync</code> 先跑。nextTick 佇列在 Promise 佇列<strong>之前</strong>清空 — nextTick 在 microtask 中有最高優先級。</p></div>
+<p>nextTick 佇列在 Promise 佇列<strong>之前</strong>清空 — nextTick 在 microtask 中有最高優先級。</p></div>
 </div>
 
 <div class="quiz-question">
 <p><strong>題目 3：</strong>在 I/O callback 裡 — setImmediate vs setTimeout</p>
-<pre>
-const fs = require('fs');
+<pre>const fs = require('fs');
 fs.readFile(__filename, () =&gt; {
   setTimeout(() =&gt; console.log('timeout'), 0);
   setImmediate(() =&gt; console.log('immediate'));
 });</pre>
 <button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
 <div class="quiz-answer"><p><strong>輸出：</strong><code>immediate, timeout</code></p>
-<p><strong>為什麼：</strong>在 I/O callback 裡面時，event loop 正在 <strong>poll</strong> phase。poll 之後會到 <strong>check</strong>（setImmediate），然後 close callbacks，最後才回到 <strong>timers</strong>（setTimeout）。所以在 I/O 內部，setImmediate 永遠比 setTimeout 先跑。</p>
+<p>在 I/O callback 裡面時，event loop 正在 <strong>poll</strong> phase。poll 之後會到 <strong>check</strong>（setImmediate），然後 close callbacks，最後才回到 <strong>timers</strong>（setTimeout）。所以在 I/O 內部，setImmediate 永遠比 setTimeout 先跑。</p>
 <p>在 I/O 外部，setTimeout 和 setImmediate 的順序是<strong>不確定的</strong> — 取決於計時器何時到期。</p></div>
 </div>
 
 <div class="quiz-question">
 <p><strong>題目 4：</strong>巢狀 Microtask</p>
-<pre>
-process.nextTick(() =&gt; {
+<pre>process.nextTick(() =&gt; {
   console.log('nextTick 1');
   process.nextTick(() =&gt; console.log('nextTick 2'));
 });
-
 Promise.resolve().then(() =&gt; {
   console.log('promise 1');
   process.nextTick(() =&gt; console.log('nextTick 3'));
 });
-
 console.log('sync');</pre>
 <button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
 <div class="quiz-answer"><p><strong>輸出：</strong><code>sync, nextTick 1, nextTick 2, promise 1, nextTick 3</code></p>
-<p><strong>為什麼：</strong>整個 nextTick 佇列在 Promise 佇列<strong>之前</strong>清空。即使 <code>nextTick 2</code> 是在 nextTick callback 裡面被加入的，它仍然在同一次清空中執行。nextTick 佇列清空後，Promise 佇列才開始。但 <code>nextTick 3</code> 是在 Promise callback 裡被加入的 — 它會在下一次 microtask 清空時執行（Promise 佇列清完後、下一個 phase 之前）。</p></div>
+<p>整個 nextTick 佇列在 Promise 佇列<strong>之前</strong>清空。即使 <code>nextTick 2</code> 是在 nextTick callback 裡面被加入的，它仍然在同一次清空中執行。nextTick 佇列清空後，Promise 佇列才開始。<code>nextTick 3</code> 是在 Promise callback 裡加入的，它會在下一次 microtask 清空時執行。</p></div>
 </div>
 
 <div class="quiz-question">
 <p><strong>題目 5：</strong>Async/await — 經典陷阱</p>
-<pre>
-async function foo() {
+<pre>async function foo() {
   console.log('a');
   await bar();
   console.log('c');
 }
-
-async function bar() {
-  console.log('b');
-}
-
+async function bar() { console.log('b'); }
 foo();
 console.log('d');</pre>
 <button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
 <div class="quiz-answer"><p><strong>輸出：</strong><code>a, b, d, c</code></p>
-<p><strong>為什麼：</strong><code>foo()</code> 同步執行到 <code>await</code>。<code>console.log('a')</code> 先跑，然後 <code>bar()</code> 被呼叫。<code>bar()</code> 同步執行（印 <code>b</code>），回傳一個 resolved promise。<code>await</code> <strong>暫停 foo</strong>，把控制權交還給呼叫者（全域範圍）。<code>console.log('d')</code> 執行。foo 的續段（await 之後的部分）被排成 microtask，在 call stack 清空後執行。</p>
-<p><strong>面試陷阱：</strong>很多人以為 <code>c</code> 在 <code>d</code> 之前。他們忽略了 <code>await</code> 會把控制權交還給呼叫者。</p></div>
+<p><code>await</code> 暫停 foo，把控制權交還給呼叫者（全域範圍）。foo 的續段（await 之後的部分）被排成 microtask，在 call stack 清空後執行。很多人以為 <code>c</code> 在 <code>d</code> 之前，但 <code>await</code> 永遠把控制權交還給呼叫者。</p></div>
 </div>
 
 <hr>
 
 <h2>4. 面試完整回答</h2>
 
-<p>當面試官問「解釋 event loop」，用這份腳本：</p>
+<p>當面試官問「解釋 event loop」，用這份腳本一口氣說完：</p>
 
 <blockquote>
-<p>"Event loop 讓 Node.js 可以在一個執行緒上處理數千個並行連線。底層的 C 函式庫 libuv 負責執行這個循環，它依序經過六個 phase：timers、pending callbacks、poll、check、close callbacks。每個 phase 有自己的 FIFO 佇列。</p>
-<p>"每個 phase 之間，Node 會清空兩個 microtask 佇列：首先是 <code>process.nextTick</code>，然後是 Promise microtask。這就是為什麼 nextTick 比 .then callback 先執行，也為什麼深度遞迴的 nextTick 可能會餓死 I/O。</p>
-<p>"關鍵的心理模型：同步加入的 microtask 在任何 macrotask 之前執行。所以 <code>Promise.resolve().then(...)</code> 比 <code>setTimeout(...)</code> 先跑，即使 delay 是 0。而在 I/O callback 裡面，<code>setImmediate</code> 比下一個 <code>setTimeout</code> 先觸發，因為 check phase 在 timers phase 之前。"</p>
+<p>"Event loop 是 libuv 實作的機制，讓 Node.js 能在單執行緒上處理大量並行連線。它循環經過六個 phase：timers、pending callbacks、idle/prepare、poll、check、close callbacks，每個 phase 處理特定類別的 callback。</p>
+<p>"關鍵在 microtask。在每個 macrotask callback 執行完之後、進到下一個 callback 之前，Node 會先清空 process.nextTick 佇列，再清空 Promise 佇列。這是 Node 11+ 的行為，與瀏覽器一致。舊版 Node 是在整個 phase 結束後才清空。</p>
+<p>"這就是為什麼 Promise.then 會比 setTimeout(0) 先執行 — Promise 是 microtask，setTimeout 是 macrotask 要等到 timers phase。一個常見的陷阱是在 I/O callback 裡面比較 setImmediate 和 setTimeout：因為 event loop 正在 poll phase，接下來會先進 check phase（setImmediate），然後才回到 timers（setTimeout），所以 setImmediate 永遠先跑。另外要注意 recursive nextTick 會讓 microtask 清不空、event loop 走不到 poll phase、所有 I/O 都被餓死。"</p>
 </blockquote>
 
-<p><strong>為什麼這段話有效：</strong>提到 libuv（展現深度）、說出 phase 名稱（展現結構）、解釋 microtask vs macrotask（展現精確度）、舉例說明（展現實戰理解）。</p>
+<p><strong>為什麼這段話有效：</strong>提到 libuv（展現深度）、說出 phase 名稱（展現結構）、解釋 microtask vs macrotask（展現精確度）、提到 Node 11+ 的版本差異（展現持續關注更新）、舉例說明（展現實戰理解）。</p>
 
 <hr>
 
@@ -200,19 +190,19 @@ console.log('d');</pre>
 <div class="quiz-question">
 <p><strong>追問：</strong>「什麼東西跑在 libuv 的執行緒池上？」</p>
 <button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
-<div class="quiz-answer"><p><strong>答：</strong>檔案系統操作（fs）、DNS（dns.lookup）、部分加密操作（crypto.pbkdf2、crypto.randomBytes）。網路 I/O（HTTP、TCP）使用作業系統核心 — 不經過執行緒池。</p></div>
+<div class="quiz-answer"><p>檔案系統操作（fs）、DNS（dns.lookup）、部分加密操作（crypto.pbkdf2、crypto.randomBytes）。網路 I/O（HTTP、TCP）使用作業系統核心 — 不經過執行緒池。</p></div>
 </div>
 
 <div class="quiz-question">
 <p><strong>追問：</strong>「poll phase 如果沒有 timer 也沒有 I/O 會發生什麼事？」</p>
 <button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
-<div class="quiz-answer"><p><strong>答：</strong>Poll phase 會檢查是否有 setImmediate callback。如果有，立刻移到 check phase。如果沒有，它會 blocking 等待 I/O 事件。如果有一個 timer 即將到期，它會跳過等待直接移到 timers phase。</p></div>
+<div class="quiz-answer"><p>Poll phase 會檢查是否有 setImmediate callback。如果有，立刻移到 check phase。如果沒有，它會 blocking 等待 I/O 事件。如果有一個 timer 即將到期，它會跳過等待直接移到 timers phase。</p></div>
 </div>
 
 <div class="quiz-question">
 <p><strong>追問：</strong>「Event loop 會永遠跑下去嗎？」</p>
 <button class="quiz-toggle" onclick="toggleAnswer(this)">看答案</button>
-<div class="quiz-answer"><p><strong>答：</strong>不會。當沒有 handle（timer、I/O socket）或 request 需要處理時，event loop 就會停止。Loop 在 libuv 裡是透過 <code>uv_run</code> 執行的 — 當 libuv 回傳時，Node 就結束了。</p></div>
+<div class="quiz-answer"><p>不會。當沒有 handle（timer、I/O socket）或 request 需要處理時，event loop 就會停止。Loop 在 libuv 裡是透過 <code>uv_run</code> 執行的 — 當 libuv 回傳時，Node 就結束了。</p></div>
 </div>
 
 <hr>
@@ -221,7 +211,7 @@ console.log('d');</pre>
 <p>學完這課後，你應該能做到：</p>
 <ul>
 <li>從記憶畫出 event loop 的 phase 順序</li>
-<li>解釋 microtask vs macrotask 的執行順序</li>
+<li>解釋 microtask vs macrotask 的執行順序（Node 11+ 行為）</li>
 <li>解決面試中的任何輸出順序題</li>
 <li>用上面的腳本回答「解釋 event loop」</li>
 </ul>
@@ -230,12 +220,12 @@ console.log('d');</pre>
 <hr>
 
 <h2>參考資料</h2>
-<p><a href="https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick">Node.js 官方文件：Event Loop、Timers、process.nextTick()</a> — 必讀。權威、簡短，面試官期待的就是這個心理模型。</p>
-<p>也可以看：<a href="https://www.youtube.com/watch?v=cCOL7MC4Pl0">Jake Archibald: In The Loop（JSConf.Asia 2018）</a> — 最清楚的 event loop + microtask 視覺化說明。</p>
+<p><a href="https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick">Node.js 官方文件：Event Loop、Timers、process.nextTick()</a></p>
+<p><a href="https://www.youtube.com/watch?v=cCOL7MC4Pl0">Jake Archibald: In The Loop（JSConf.Asia 2018）</a> — event loop + microtask 視覺化說明</p>
 
 <hr>
 
-<p style="color: var(--gray); font-size: 0.85em;">卡住了？不清楚的地方問你的老師（agent）— 這就是他們的功能。</p>
+<p style="color: var(--gray); font-size: 0.85em;">卡住了？不清楚的地方問你的老師（agent）。</p>
 
 <script>
 function toggleAnswer(btn) {
